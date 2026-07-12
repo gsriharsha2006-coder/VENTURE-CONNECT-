@@ -1,0 +1,8 @@
+<svg width="320" height="72" viewBox="0 0 320 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2" y="2" width="68" height="68" rx="16" fill="#0F172A"/>
+  <rect x="10" y="10" width="52" height="52" rx="12" fill="#2563EB"/>
+  <path d="M22 24L35.7 50H39.6L53 24H46.9L37.7 42.4L28.4 24H22Z" fill="white"/>
+  <path d="M50 47.2C46.8 50.4 42.4 52 37.4 52C29.6 52 23.4 47 22.2 39.6H28.4C29.5 43.7 33 46.4 37.5 46.4C40.9 46.4 43.5 45.3 45.5 43.2L50 47.2Z" fill="#DBEAFE"/>
+  <text x="84" y="34" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="750" fill="#0F172A">Venture Connect</text>
+  <text x="85" y="55" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#64748B">VC readiness platform</text>
+</svg>

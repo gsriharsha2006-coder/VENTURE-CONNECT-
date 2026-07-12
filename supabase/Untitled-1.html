@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VentureConnect (VC)</title>
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Inter, Arial, sans-serif;
+}
+
+body{
+    background:#f8fbfa;
+    color:#0b132b;
+    overflow-x:hidden;
+}
+
+/* NAVBAR */
+nav{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:22px 70px;
+    background:white;
+    border-bottom:1px solid #e5e7eb;
+    position:sticky;
+    top:0;
+    z-index:100;
+}
+
+.logo{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:22px;
+    font-weight:700;
+}
+
+.logo span{
+    color:#11b57a;
+    font-size:28px;
+}
+
+.signin-btn{
+    background:#0b132b;
+    color:white;
+    border:none;
+    padding:14px 24px;
+    border-radius:14px;
+    cursor:pointer;
+    font-size:16px;
+    transition:0.3s;
+}
+
+.signin-btn:hover{
+    transform:translateY(-4px);
+    box-shadow:0 8px 18px rgba(0,0,0,0.18);
+}
+
+/* HERO */
+.hero{
+    background:#eef9f4;
+    text-align:center;
+    padding:90px 20px 120px;
+}
+
+.badge{
+    display:inline-block;
+    background:#dff7eb;
+    color:#0a9b65;
+    padding:12px 22px;
+    border-radius:30px;
+    margin-bottom:40px;
+    font-size:18px;
+    animation:fadeIn 1s ease;
+}
+
+.hero h1{
+    font-size:78px;
+    line-height:1.05;
+    max-width:1200px;
+    margin:auto;
+    font-weight:800;
+    animation:slideUp 1s ease;
+}
+
+.green{
+    color:#11b57a;
+}
+
+.hero p{
+    margin:35px auto;
+    max-width:900px;
+    font-size:24px;
+    color:#667085;
+    line-height:1.5;
+}
+
+.buttons{
+    display:flex;
+    justify-content:center;
+    gap:22px;
+    margin-top:45px;
+}
+
+button{
+    cursor:pointer;
+    transition:all 0.35s ease;
+    font-size:18px;
+    border-radius:16px;
+}
+
+.primary{
+    background:#0b132b;
+    color:white;
+    border:none;
+    padding:18px 34px;
+}
+
+.secondary{
+    background:white;
+    border:none;
+    padding:18px 34px;
+}
+
+.text-btn{
+    background:transparent;
+    border:none;
+    padding:18px 20px;
+}
+
+.primary:hover,
+.secondary:hover,
+.text-btn:hover{
+    transform:scale(1.08);
+}
+
+/* FEATURES */
+.features{
+    padding:120px 60px;
+    text-align:center;
+}
+
+.features h2{
+    font-size:56px;
+    margin-bottom:18px;
+}
+
+.features p{
+    color:#667085;
+    font-size:24px;
+}
+
+.cards{
+    display:flex;
+    justify-content:center;
+    gap:35px;
+    margin-top:80px;
+    flex-wrap:wrap;
+}
+
+.card{
+    width:360px;
+    background:white;
+    border:1px solid #e5e7eb;
+    border-radius:24px;
+    padding:35px;
+    text-align:left;
+    transition:0.35s;
+}
+
+.card:hover{
+    transform:translateY(-12px);
+    box-shadow:0 18px 35px rgba(0,0,0,0.08);
+}
+
+.icon{
+    width:65px;
+    height:65px;
+    border-radius:18px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:28px;
+}
+
+.green-bg{
+    background:#dff7eb;
+}
+
+.yellow-bg{
+    background:#fff3c7;
+}
+
+.blue-bg{
+    background:#e0edff;
+}
+
+.card h3{
+    margin:25px 0;
+    font-size:28px;
+}
+
+.card p{
+    font-size:20px;
+    line-height:1.6;
+}
+
+/* ANIMATIONS */
+@keyframes slideUp{
+    from{
+        opacity:0;
+        transform:translateY(50px);
+    }
+    to{
+        opacity:1;
+        transform:translateY(0);
+    }
+}
+
+@keyframes fadeIn{
+    from{
+        opacity:0;
+    }
+    to{
+        opacity:1;
+    }
+}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+    .hero h1{
+        font-size:48px;
+    }
+
+    .buttons{
+        flex-direction:column;
+        align-items:center;
+    }
+
+    nav{
+        padding:20px 30px;
+    }
+}
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav>
+    <div class="logo">
+        <span>🚀</span> VentureConnect
+    </div>
+
+    <button class="signin-btn" onclick="signIn()">
+        Sign in with Google
+    </button>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+    <div class="badge">
+        Launch-ready startup launchpad
+    </div>
+
+    <h1>
+        Private. Curated.
+        <span class="green">Investor-Ready</span>
+        Startup Discovery.
+    </h1>
+
+    <p>
+        Helping early-stage founders connect with investors and mentors
+        without cold pitching. Your ideas stay protected until there’s
+        genuine interest.
+    </p>
+
+    <div class="buttons">
+        <button class="primary" onclick="submitStartup()">
+            Submit Your Startup →
+        </button>
+
+        <button class="secondary" onclick="exploreInvestor()">
+            Explore as Investor
+        </button>
+
+        <button class="text-btn" onclick="becomeMentor()">
+            Become a Mentor
+        </button>
+    </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features">
+    <h2>Built for Trust & Quality</h2>
+
+    <p>
+        A private launchpad where ideas are protected
+        and connections are meaningful.
+    </p>
+
+    <div class="cards">
+        <div class="card">
+            <div class="icon green-bg">🔒</div>
+            <h3>Idea Workspace</h3>
+            <p>
+                Your startup details stay protected until
+                investor interest is confirmed.
+            </p>
+        </div>
+
+        <div class="card">
+            <div class="icon yellow-bg">📈</div>
+            <h3>Readiness Score</h3>
+            <p>
+                Measure investor readiness with smart scoring.
+            </p>
+        </div>
+
+        <div class="card">
+            <div class="icon blue-bg">🛡️</div>
+            <h3>Curated Quality</h3>
+            <p>
+                Every startup is reviewed for quality before exposure.
+            </p>
+        </div>
+    </div>
+</section>
+
+<script>
+function signIn(){
+    alert("Google Sign In for VC");
+}
+
+function submitStartup(){
+    alert("Submit your startup to VentureConnect");
+}
+
+function exploreInvestor(){
+    alert("Explore startup opportunities");
+}
+
+function becomeMentor(){
+    alert("Join as a mentor");
+}
+</script>
+
+</body>
+</html>
