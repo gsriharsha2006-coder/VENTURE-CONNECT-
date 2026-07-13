@@ -146,16 +146,19 @@ export default function OpportunitiesPage() {
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Badge>Opportunities</Badge>
-          <select
-            aria-label="Demo subscription plan"
-            value={plan}
-            onChange={(event) => setPlan(event.target.value as "Free" | "Student Pro" | "Founder Pro")}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold"
-          >
-            <option>Free</option>
-            <option>Student Pro</option>
-            <option>Founder Pro</option>
-          </select>
+          <label className="flex h-10 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3">
+            <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">Demo plan</span>
+            <select
+              aria-label="Demo subscription plan"
+              value={plan}
+              onChange={(event) => setPlan(event.target.value as "Free" | "Student Pro" | "Founder Pro")}
+              className="bg-transparent text-sm font-semibold text-slate-900 outline-none"
+            >
+              <option>Free</option>
+              <option>Student Pro</option>
+              <option>Founder Pro</option>
+            </select>
+          </label>
         </div>
         <h1 className="mt-3 text-3xl font-semibold tracking-normal text-slate-950">Structured opportunity discovery and applications</h1>
         <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">

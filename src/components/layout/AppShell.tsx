@@ -34,7 +34,7 @@ const founderNav: NavItem[] = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/dashboard/idea-workspace", label: "Idea Workspace", icon: Lightbulb },
   { href: "/dashboard/opportunities", label: "Opportunities", icon: Compass },
-  { href: "/dashboard/vc-readiness", label: "VC Readiness", icon: FileChartColumn },
+  { href: "/dashboard/vc-readiness", label: "VC Readiness Report", icon: FileChartColumn },
   { href: "/dashboard/messages", label: "Messages", icon: MessagesSquare },
   { href: "/dashboard/services", label: "Services", icon: Store },
   { href: "/dashboard/profile", label: "Profile", icon: UserRound },
@@ -98,8 +98,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const PrimaryIcon = isInvestor ? FilePlus2 : isProvider ? Store : pathname.startsWith("/admin") ? ShieldCheck : Lightbulb;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-slate-200 bg-white px-4 py-5 lg:block">
+    <div className="min-h-dvh bg-slate-50 text-slate-950">
+      <aside className="scrollbar-thin fixed inset-y-0 left-0 z-40 hidden h-dvh w-72 flex-col overflow-y-auto border-r border-slate-200 bg-white px-4 py-5 lg:flex">
         <VentureLogo className="px-2" />
 
         <div className="mt-7 rounded-lg border border-blue-100 bg-blue-50 p-3">
@@ -135,7 +135,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        <div className="absolute bottom-5 left-4 right-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mt-auto rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <Settings2 size={16} className="text-primary" />
             Workflow rule
@@ -146,7 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="lg:pl-72">
+      <div className="min-w-0 lg:pl-72">
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
           <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
             <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -214,7 +214,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="min-w-0 px-4 py-6 pb-10 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>
   );

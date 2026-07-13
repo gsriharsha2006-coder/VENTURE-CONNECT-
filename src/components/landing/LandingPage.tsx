@@ -51,14 +51,14 @@ export function LandingPage() {
       </header>
 
       <section className="border-y border-slate-200 bg-slate-950 text-white">
-        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:py-16">
           <div className="flex flex-col justify-center">
             <Badge className="w-fit border-blue-300 bg-blue-500/15 text-blue-100">
               <ShieldCheck size={13} />
               VC readiness workflow platform
             </Badge>
-            <h1 className="mt-5 max-w-3xl text-5xl font-semibold tracking-normal sm:text-6xl">
-              Structured discovery, AI-validated readiness, and investor-first communication.
+            <h1 className="mt-5 max-w-3xl text-[2.75rem] font-semibold leading-[1.04] tracking-normal sm:text-5xl lg:text-[3.5rem] xl:text-6xl">
+              Structured discovery, VC readiness, and investor-first communication.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-blue-100">
               Venture Connect helps founders create investor-ready documents, generate VC Readiness Reports, apply to relevant opportunities, and unlock messaging only after reviewer interest.
@@ -88,7 +88,7 @@ export function LandingPage() {
                 <Badge tone="green">88 readiness</Badge>
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
-                {["Idea Workspace", "VC Report", "Application"].map((item, index) => (
+                {["Idea Workspace", "VC Readiness Report", "Application"].map((item, index) => (
                   <div key={item} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <div className="flex items-center gap-2">
                       <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-xs font-bold text-white">{index + 1}</span>

@@ -41,14 +41,14 @@ export default function DashboardPage() {
             Venture Connect keeps the founder workflow focused: Idea Workspace, VC Readiness Report, structured applications, and interest-gated messaging.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/dashboard/idea-workspace">
+        <div className="flex shrink-0 flex-wrap gap-2 sm:flex-nowrap">
+          <Link href="/dashboard/idea-workspace" className="flex">
             <Button>
               <Lightbulb size={16} />
               Open Idea Workspace
             </Button>
           </Link>
-          <Link href="/dashboard/opportunities">
+          <Link href="/dashboard/opportunities" className="flex">
             <Button variant="secondary">
               <Send size={16} />
               Apply

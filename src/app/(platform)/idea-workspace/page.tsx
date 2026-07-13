@@ -36,6 +36,12 @@ const STORAGE_KEY = "venture-connect-idea-workspace";
 const statuses: IdeaStatus[] = ["Draft", "In Progress", "Complete"];
 const stages: StartupStage[] = ["Idea", "Prototype", "MVP", "Revenue", "Seed"];
 
+const versionDateFormatter = new Intl.DateTimeFormat("en-IN", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Kolkata"
+});
+
 function createBlankWorkspace(template: WorkspaceTemplate = "startup"): IdeaWorkspaceItem {
   const def = getTemplateDef(template);
   const sections = Object.fromEntries(def.sections.map((s) => [s.key, ""]));
@@ -279,17 +285,20 @@ export default function IdeaWorkspacePage() {
             Create documents, fill required sections, autosave progress, export files, and generate VC Readiness Reports from selected workspaces.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <select
-            aria-label="Demo subscription plan"
-            value={plan}
-            onChange={(event) => setPlan(event.target.value as "Free" | "Student Pro" | "Founder Pro")}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold"
-          >
-            <option>Free</option>
-            <option>Student Pro</option>
-            <option>Founder Pro</option>
-          </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex h-10 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3">
+            <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">Demo plan</span>
+            <select
+              aria-label="Demo subscription plan"
+              value={plan}
+              onChange={(event) => setPlan(event.target.value as "Free" | "Student Pro" | "Founder Pro")}
+              className="bg-transparent text-sm font-semibold text-slate-900 outline-none"
+            >
+              <option>Free</option>
+              <option>Student Pro</option>
+              <option>Founder Pro</option>
+            </select>
+          </label>
           <Button variant="secondary" onClick={() => setShowTemplatePicker(true)}>
             <LayoutTemplate size={16} />
             New workspace
@@ -338,48 +347,41 @@ export default function IdeaWorkspacePage() {
 
         <div className="space-y-4">
           <Card className="p-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="flex-1">
+            <div className="space-y-4">
+              <label className="block">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Document title</span>
                 <input
                   value={selected.name}
                   onChange={(e) => updateSelected({ name: e.target.value })}
-                  className="w-full text-2xl font-semibold outline-none bg-transparent"
+                  className="mt-1 w-full bg-transparent text-2xl font-semibold outline-none"
                 />
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <Badge>{getTemplateDef(selected.template).label}</Badge>
-                  <Badge tone="blue">{selected.status}</Badge>
-                  <Badge tone="slate">{selected.visibility}</Badge>
+              </label>
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Template type</p>
+                  <div className="flex h-10 items-center">
+                    <Badge>{getTemplateDef(selected.template).label}</Badge>
+                  </div>
                 </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <select
-                  value={selected.status}
-                  onChange={(e) => changeStatus(e.target.value as IdeaStatus)}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                >
-                  {statuses.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                <select
-                  value={selected.stage}
-                  onChange={(e) => updateSelected({ stage: e.target.value as StartupStage })}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                >
-                  {stages.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                <select
-                  value={selected.visibility}
-                  onChange={(e) =>
-                    updateSelected({ visibility: e.target.value as "private" | "application_only" })
-                  }
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                >
-                  <option value="private">Private</option>
-                  <option value="application_only">Application only</option>
-                </select>
+                <label>
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Status</span>
+                  <select value={selected.status} onChange={(e) => changeStatus(e.target.value as IdeaStatus)} className="h-10 rounded-lg border border-slate-200 px-3 text-sm">
+                    {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Stage</span>
+                  <select value={selected.stage} onChange={(e) => updateSelected({ stage: e.target.value as StartupStage })} className="h-10 rounded-lg border border-slate-200 px-3 text-sm">
+                    {stages.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Visibility</span>
+                  <select value={selected.visibility} onChange={(e) => updateSelected({ visibility: e.target.value as "private" | "application_only" })} className="h-10 rounded-lg border border-slate-200 px-3 text-sm">
+                    <option value="private">Private</option>
+                    <option value="application_only">Application only</option>
+                  </select>
+                </label>
               </div>
             </div>
 
@@ -434,12 +436,13 @@ export default function IdeaWorkspacePage() {
             </Card>
 
             <Card className="p-4">
-              {sectionMeta && (
+              {sectionMeta ? (
                 <>
                   <CardHeader
                     eyebrow={templateDef.label}
                     title={sectionMeta.label}
                   />
+                  <p className="-mt-2 mb-4 text-xs leading-5 text-slate-500">Select a section to edit its content.</p>
                   <textarea
                     value={selected.sections[activeSection] ?? ""}
                     onChange={(e) => updateSection(activeSection, e.target.value)}
@@ -464,6 +467,10 @@ export default function IdeaWorkspacePage() {
                   ) : null}
                 </div>
                 </>
+              ) : (
+                <div className="flex min-h-72 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                  Select a section to edit its content.
+                </div>
               )}
             </Card>
           </div>
@@ -532,7 +539,7 @@ export default function IdeaWorkspacePage() {
                 <ul className="mt-2 space-y-1 text-sm text-slate-600">
                   {selected.versionHistory.slice(-5).reverse().map((v) => (
                     <li key={v.id}>
-                      v{v.versionNumber} / {new Date(v.createdAt).toLocaleString()}
+                      v{v.versionNumber} / {versionDateFormatter.format(new Date(v.createdAt))}
                     </li>
                   ))}
                 </ul>

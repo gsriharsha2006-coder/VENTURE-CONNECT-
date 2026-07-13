@@ -57,7 +57,7 @@ export default function AuthPage() {
   const [website, setWebsite] = useState("");
   const [experience, setExperience] = useState("");
   const [cgpdtm, setCgpdtm] = useState("");
-  const [status, setStatus] = useState("Prototype mode: add Supabase env vars for live authentication.");
+  const [status, setStatus] = useState("Development/demo mode is active. Authentication is not persisted.");
   const supabaseReady = isSupabaseConfigured();
 
   const redirectTo = useMemo(() => `${authRedirectTo}${dashboardForRole(role)}`, [role]);
@@ -111,11 +111,11 @@ export default function AuthPage() {
               <ShieldCheck size={13} />
               Role-based authentication
             </Badge>
-            <h1 className="mt-6 text-5xl font-semibold tracking-normal">
+            <h1 className="mt-6 text-4xl font-semibold tracking-normal sm:text-5xl">
               The professional network for startup fundraising.
             </h1>
             <p className="mt-5 text-base leading-7 text-blue-100">
-              Structured discovery, AI-validated readiness, and investor-first communication -- all in one platform.
+              Structured discovery, VC readiness, and investor-first communication—all in one platform.
             </p>
           </div>
           <div className="grid gap-3 text-sm text-blue-100 sm:grid-cols-3">
@@ -129,7 +129,7 @@ export default function AuthPage() {
 
         <section className="flex items-center px-4 py-8 sm:px-6 lg:px-12">
           <div className="mx-auto w-full max-w-3xl">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <Badge tone={supabaseReady ? "green" : "amber"}>
                   {supabaseReady ? "Supabase connected" : "Prototype auth"}
@@ -249,10 +249,15 @@ export default function AuthPage() {
                 <ArrowRight size={17} />
               </Button>
               <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm leading-6 text-blue-900">{status}</div>
-              <Link href={dashboardForRole(role)} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary">
-                Continue in prototype mode
-                <ArrowRight size={16} />
-              </Link>
+              {!supabaseReady ? (
+                <div className="mt-4 flex flex-col gap-1">
+                  <Link href={dashboardForRole(role)} className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
+                    Continue in prototype mode
+                    <ArrowRight size={16} />
+                  </Link>
+                  <p className="text-xs leading-5 text-slate-500">Add Supabase env vars for live authentication.</p>
+                </div>
+              ) : null}
             </div>
           </div>
         </section>
