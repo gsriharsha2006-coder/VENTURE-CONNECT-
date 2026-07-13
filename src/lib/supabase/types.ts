@@ -18,6 +18,7 @@ export type Database = {
           trust_score: number;
           verification_status: string;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -31,6 +32,7 @@ export type Database = {
           trust_score?: number;
           verification_status?: string;
           created_at?: string;
+          updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
       };
@@ -42,8 +44,12 @@ export type Database = {
           title: string;
           sections_json: Json;
           video_link: Nullable<string>;
+          stage: string;
+          visibility: string;
+          tags: string[];
           completion_percentage: number;
           status: string;
+          archived: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -54,8 +60,12 @@ export type Database = {
           title: string;
           sections_json?: Json;
           video_link?: Nullable<string>;
+          stage?: string;
+          visibility?: string;
+          tags?: string[];
           completion_percentage?: number;
           status?: string;
+          archived?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -332,4 +342,3 @@ export type Database = {
     CompositeTypes: Record<string, never>;
   };
 };
-

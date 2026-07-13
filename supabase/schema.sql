@@ -7,29 +7,34 @@ create extension if not exists "pgcrypto";
 
 create table if not exists public.profiles (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id) on delete cascade,
-  role text,
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  role text not null default 'founder' check (role in ('founder', 'investor', 'incubator', 'hackathon_organizer', 'event_organizer', 'service_provider', 'admin')),
   full_name text,
   company_name text,
   email text,
   phone text,
   plan text default 'free',
   trust_score integer default 0,
-  verification_status text default 'pending',
-  created_at timestamptz default now()
+  verification_status text not null default 'pending',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists public.idea_workspaces (
   id uuid primary key default gen_random_uuid(),
-  founder_id uuid references auth.users(id) on delete cascade,
-  template_type text,
-  title text,
+  founder_id uuid not null references auth.users(id) on delete cascade,
+  template_type text not null default 'startup',
+  title text not null,
   sections_json jsonb default '{}'::jsonb,
   video_link text,
-  completion_percentage integer default 0,
-  status text default 'draft',
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  stage text not null default 'Idea',
+  visibility text not null default 'application_only',
+  tags text[] not null default '{}',
+  completion_percentage integer not null default 0 check (completion_percentage between 0 and 100),
+  status text not null default 'draft',
+  archived boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists public.opportunities (
@@ -155,8 +160,60 @@ create table if not exists public.subscriptions (
   free_swot_used boolean default false
 );
 
+-- Safe upgrades for projects that previously ran the Phase 2 foundation schema.
+alter table public.profiles add column if not exists updated_at timestamptz not null default now();
+alter table public.idea_workspaces add column if not exists archived boolean not null default false;
+alter table public.idea_workspaces add column if not exists stage text not null default 'Idea';
+alter table public.idea_workspaces add column if not exists visibility text not null default 'application_only';
+alter table public.idea_workspaces add column if not exists tags text[] not null default '{}';
+
+create unique index if not exists profiles_user_id_unique_idx on public.profiles(user_id) where user_id is not null;
+create unique index if not exists service_providers_user_id_unique_idx on public.service_providers(user_id) where user_id is not null;
+create unique index if not exists applications_founder_opportunity_unique_idx on public.applications(founder_id, opportunity_id);
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'profiles_user_id_required') then
+    alter table public.profiles add constraint profiles_user_id_required check (user_id is not null) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'profiles_role_allowed') then
+    alter table public.profiles add constraint profiles_role_allowed check (role in ('founder', 'investor', 'incubator', 'hackathon_organizer', 'event_organizer', 'service_provider', 'admin')) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'profiles_plan_allowed') then
+    alter table public.profiles add constraint profiles_plan_allowed check (plan in ('free', 'student_pro', 'founder_pro')) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'profiles_trust_score_range') then
+    alter table public.profiles add constraint profiles_trust_score_range check (trust_score between 0 and 100) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'profiles_verification_status_allowed') then
+    alter table public.profiles add constraint profiles_verification_status_allowed check (verification_status in ('pending', 'verified', 'rejected', 'suspended')) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'idea_workspaces_completion_range') then
+    alter table public.idea_workspaces add constraint idea_workspaces_completion_range check (completion_percentage between 0 and 100) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'idea_workspaces_founder_required') then
+    alter table public.idea_workspaces add constraint idea_workspaces_founder_required check (founder_id is not null) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'idea_workspaces_title_required') then
+    alter table public.idea_workspaces add constraint idea_workspaces_title_required check (length(trim(title)) > 0) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'idea_workspaces_status_allowed') then
+    alter table public.idea_workspaces add constraint idea_workspaces_status_allowed check (status in ('draft', 'in_progress', 'complete')) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'idea_workspaces_template_allowed') then
+    alter table public.idea_workspaces add constraint idea_workspaces_template_allowed check (template_type in ('startup', 'ai-project', 'hackathon', 'saas', 'marketing', 'student-project', 'custom')) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'idea_workspaces_stage_allowed') then
+    alter table public.idea_workspaces add constraint idea_workspaces_stage_allowed check (stage in ('Idea', 'Prototype', 'MVP', 'Revenue', 'Seed')) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'idea_workspaces_visibility_allowed') then
+    alter table public.idea_workspaces add constraint idea_workspaces_visibility_allowed check (visibility in ('private', 'application_only')) not valid;
+  end if;
+end $$;
+
 create index if not exists profiles_user_id_idx on public.profiles(user_id);
 create index if not exists idea_workspaces_founder_id_idx on public.idea_workspaces(founder_id);
+create index if not exists idea_workspaces_founder_updated_idx on public.idea_workspaces(founder_id, archived, updated_at desc);
 create index if not exists opportunities_created_by_idx on public.opportunities(created_by);
 create index if not exists applications_founder_id_idx on public.applications(founder_id);
 create index if not exists applications_opportunity_id_idx on public.applications(opportunity_id);
@@ -166,6 +223,98 @@ create index if not exists service_providers_user_id_idx on public.service_provi
 create index if not exists service_posts_provider_id_idx on public.service_posts(provider_id);
 create index if not exists notifications_user_id_idx on public.notifications(user_id);
 create index if not exists subscriptions_user_id_idx on public.subscriptions(user_id);
+
+create or replace function public.normalize_signup_role(value text)
+returns text
+language sql
+immutable
+set search_path = public
+as $$
+  select case lower(replace(replace(coalesce(value, ''), ' ', '_'), '-', '_'))
+    when 'investor' then 'investor'
+    when 'incubator' then 'incubator'
+    when 'hackathon_organizer' then 'hackathon_organizer'
+    when 'event_organizer' then 'event_organizer'
+    when 'service_provider' then 'service_provider'
+    else 'founder'
+  end;
+$$;
+
+create or replace function public.handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  signup_role text := public.normalize_signup_role(new.raw_user_meta_data ->> 'role');
+begin
+  insert into public.profiles (user_id, role, full_name, company_name, email, phone)
+  values (
+    new.id,
+    signup_role,
+    coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), split_part(coalesce(new.email, ''), '@', 1)),
+    nullif(new.raw_user_meta_data ->> 'company_name', ''),
+    new.email,
+    nullif(new.raw_user_meta_data ->> 'phone', '')
+  )
+  on conflict do nothing;
+
+  if signup_role = 'service_provider' then
+    insert into public.service_providers (
+      user_id,
+      name,
+      firm_name,
+      email,
+      phone,
+      service_category,
+      pan_or_gst,
+      website_or_linkedin,
+      experience_details,
+      cgpdtm_registration_number
+    )
+    values (
+      new.id,
+      coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), split_part(coalesce(new.email, ''), '@', 1)),
+      nullif(new.raw_user_meta_data ->> 'company_name', ''),
+      new.email,
+      nullif(new.raw_user_meta_data ->> 'phone', ''),
+      nullif(new.raw_user_meta_data ->> 'service_category', ''),
+      nullif(new.raw_user_meta_data ->> 'pan_or_gst', ''),
+      nullif(new.raw_user_meta_data ->> 'website_or_linkedin', ''),
+      nullif(new.raw_user_meta_data ->> 'experience_details', ''),
+      nullif(new.raw_user_meta_data ->> 'cgpdtm_registration_number', '')
+    )
+    on conflict do nothing;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute function public.handle_new_auth_user();
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_set_updated_at on public.profiles;
+create trigger profiles_set_updated_at before update on public.profiles
+for each row execute function public.set_updated_at();
+
+drop trigger if exists idea_workspaces_set_updated_at on public.idea_workspaces;
+create trigger idea_workspaces_set_updated_at before update on public.idea_workspaces
+for each row execute function public.set_updated_at();
 
 create or replace function public.current_profile_role()
 returns text
@@ -200,6 +349,32 @@ as $$
   );
 $$;
 
+create or replace function public.prevent_profile_privilege_escalation()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() = old.user_id and not public.is_admin(auth.uid()) then
+    new.user_id = old.user_id;
+    new.role = old.role;
+    new.plan = old.plan;
+    new.trust_score = old.trust_score;
+    new.verification_status = old.verification_status;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_prevent_privilege_escalation on public.profiles;
+create trigger profiles_prevent_privilege_escalation
+before update on public.profiles
+for each row execute function public.prevent_profile_privilege_escalation();
+
+revoke all on function public.handle_new_auth_user() from public;
+revoke all on function public.prevent_profile_privilege_escalation() from public;
+
 alter table public.profiles enable row level security;
 alter table public.idea_workspaces enable row level security;
 alter table public.opportunities enable row level security;
@@ -220,7 +395,13 @@ using (user_id = auth.uid() or public.is_admin());
 drop policy if exists "profiles_insert_own" on public.profiles;
 create policy "profiles_insert_own"
 on public.profiles for insert
-with check (user_id = auth.uid());
+with check (
+  user_id = auth.uid()
+  and role in ('founder', 'investor', 'incubator', 'hackathon_organizer', 'event_organizer', 'service_provider')
+  and plan = 'free'
+  and trust_score = 0
+  and verification_status = 'pending'
+);
 
 drop policy if exists "profiles_update_own_or_admin" on public.profiles;
 create policy "profiles_update_own_or_admin"
@@ -244,6 +425,11 @@ on public.idea_workspaces for update
 using (founder_id = auth.uid() or public.is_admin())
 with check (founder_id = auth.uid() or public.is_admin());
 
+drop policy if exists "idea_workspaces_delete_own_or_admin" on public.idea_workspaces;
+create policy "idea_workspaces_delete_own_or_admin"
+on public.idea_workspaces for delete
+using (founder_id = auth.uid() or public.is_admin());
+
 drop policy if exists "opportunities_select_verified_own_or_admin" on public.opportunities;
 create policy "opportunities_select_verified_own_or_admin"
 on public.opportunities for select
@@ -254,7 +440,7 @@ create policy "opportunities_insert_reviewers"
 on public.opportunities for insert
 with check (
   created_by = auth.uid()
-  and creator_role in ('Investor', 'Incubator', 'Hackathon Organizer', 'Event Organizer', 'Admin')
+  and creator_role in ('investor', 'incubator', 'hackathon_organizer', 'event_organizer', 'admin')
 );
 
 drop policy if exists "opportunities_update_own_or_admin" on public.opportunities;

@@ -1,9 +1,9 @@
 import { messageThreads as mockMessageThreads } from "@/lib/data";
-import { getBrowserSupabase, getCurrentUserId } from "@/lib/data/shared";
+import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
 
 export async function getMessagesForApplication(applicationId: string) {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId("list application messages");
   if (!supabase || !userId) return mockMessageThreads.filter((thread) => thread.id === applicationId || !applicationId);
 
   const { data, error } = await supabase
@@ -12,8 +12,8 @@ export async function getMessagesForApplication(applicationId: string) {
     .eq("application_id", applicationId)
     .order("created_at", { ascending: true });
 
-  if (error || !data?.length) return [];
-  return data;
+  if (error) throw supabaseDataError("list application messages", error);
+  return data ?? [];
 }
 
 export async function createInterestedConversation(input: {
@@ -25,7 +25,7 @@ export async function createInterestedConversation(input: {
   lockedForFreeUser?: boolean;
 }) {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId("create interested conversation");
   if (!supabase || !userId) {
     return {
       id: `message-${Date.now()}`,
@@ -34,10 +34,11 @@ export async function createInterestedConversation(input: {
     };
   }
 
-  await supabase
+  const { error: applicationError } = await supabase
     .from("applications")
     .update({ status: "interested", reviewed_at: new Date().toISOString() })
     .eq("id", input.applicationId);
+  if (applicationError) throw supabaseDataError("mark application interested", applicationError);
 
   const { data, error } = await supabase
     .from("messages")
@@ -53,14 +54,7 @@ export async function createInterestedConversation(input: {
     .select()
     .single();
 
-  if (error || !data) {
-    return {
-      id: `message-${Date.now()}`,
-      mode: "mock-fallback" as const,
-      body: input.body ?? "Interest-led conversation updated."
-    };
-  }
+  if (error || !data) throw supabaseDataError("create interested conversation", error ?? "No row returned.");
 
   return data;
 }
-

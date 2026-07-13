@@ -1,5 +1,5 @@
 import { computeEntitlements } from "@/lib/subscription/plans";
-import { getBrowserSupabase, getCurrentUserId, normalizePlan } from "@/lib/data/shared";
+import { getBrowserSupabase, getCurrentUserId, normalizePlan, supabaseDataError } from "@/lib/data/shared";
 import { mockCurrentProfile } from "@/lib/data/profiles";
 import type { Subscription, SubscriptionPlan } from "@/lib/types";
 
@@ -9,16 +9,19 @@ export async function getSubscriptionUsage(): Promise<{
   entitlements: ReturnType<typeof computeEntitlements>;
 }> {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId("load subscription usage");
   if (!supabase || !userId) {
     const entitlements = computeEntitlements(mockCurrentProfile);
     return { plan: mockCurrentProfile.plan, subscription: null, entitlements };
   }
 
-  const [{ data: profile }, { data: subscription }] = await Promise.all([
+  const [{ data: profile, error: profileError }, { data: subscription, error: subscriptionError }] = await Promise.all([
     supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
     supabase.from("subscriptions").select("*").eq("user_id", userId).eq("status", "active").maybeSingle()
   ]);
+  if (profileError) throw supabaseDataError("load subscription profile", profileError);
+  if (subscriptionError) throw supabaseDataError("load active subscription", subscriptionError);
+  if (!profile) throw supabaseDataError("load subscription profile", "Profile row is missing.");
 
   const plan = normalizePlan(subscription?.plan ?? profile?.plan);
   const entitlements = computeEntitlements({
@@ -49,4 +52,3 @@ export async function getSubscriptionUsage(): Promise<{
     entitlements
   };
 }
-

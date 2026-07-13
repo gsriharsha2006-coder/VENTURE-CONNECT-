@@ -1,5 +1,6 @@
 import { opportunities as mockOpportunities } from "@/lib/data";
-import { getBrowserSupabase, getCurrentUserId } from "@/lib/data/shared";
+import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
+import { toDatabaseRole, toUserRole } from "@/lib/auth/roles";
 import type { DomainTag, Opportunity, OpportunityMode, OpportunityType, StartupStage, UserRole } from "@/lib/types";
 
 function normalizeType(value?: string | null): OpportunityType {
@@ -45,7 +46,7 @@ function opportunityFromRow(row: {
   return {
     id: row.id,
     created_by: row.created_by ?? undefined,
-    creator_role: (row.creator_role as Opportunity["creator_role"]) ?? "Investor",
+    creator_role: toUserRole(row.creator_role) as Opportunity["creator_role"],
     title: row.title ?? "Untitled opportunity",
     organizer_name: row.organizer_name ?? "Venture Connect partner",
     organizer_type: row.creator_role ?? "Verified organizer",
@@ -88,8 +89,8 @@ export async function getOpportunities(): Promise<Opportunity[]> {
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error || !data?.length) return mockOpportunities;
-  return data.map(opportunityFromRow);
+  if (error) throw supabaseDataError("list opportunities", error);
+  return (data ?? []).map(opportunityFromRow);
 }
 
 export async function createOpportunity(input: {
@@ -100,7 +101,7 @@ export async function createOpportunity(input: {
   creatorRole?: Exclude<UserRole, "Founder" | "Service Provider">;
 }) {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId("create opportunity");
   if (!supabase || !userId) {
     return {
       id: `opp-${Date.now()}`,
@@ -115,7 +116,7 @@ export async function createOpportunity(input: {
     .from("opportunities")
     .insert({
       created_by: userId,
-      creator_role: input.creatorRole ?? "Investor",
+      creator_role: toDatabaseRole(input.creatorRole ?? "Investor"),
       title: input.title,
       organizer_name: input.organizerName ?? "Supabase organizer",
       opportunity_type: input.type,
@@ -125,16 +126,7 @@ export async function createOpportunity(input: {
     .select()
     .single();
 
-  if (error || !data) {
-    return {
-      id: `opp-${Date.now()}`,
-      title: input.title,
-      type: input.type,
-      deadline: input.deadline,
-      mode: "mock-fallback" as const
-    };
-  }
+  if (error || !data) throw supabaseDataError("create opportunity", error ?? "No row returned.");
 
   return opportunityFromRow(data);
 }
-

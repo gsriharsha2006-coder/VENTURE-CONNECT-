@@ -1,5 +1,6 @@
 export {
   createBrowserSupabase,
+  createSupabaseBrowserClient,
   isSupabaseConfigured,
   authRedirectTo
 } from "@/lib/supabase/browser";

@@ -1,10 +1,10 @@
 import { applications as mockApplications } from "@/lib/data";
-import { getBrowserSupabase, getCurrentUserId } from "@/lib/data/shared";
+import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
 import type { Application } from "@/lib/types";
 
 export async function getApplications(): Promise<Application[]> {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId("list applications");
   if (!supabase || !userId) return mockApplications;
 
   const { data, error } = await supabase
@@ -13,9 +13,9 @@ export async function getApplications(): Promise<Application[]> {
     .eq("founder_id", userId)
     .order("submitted_at", { ascending: false });
 
-  if (error || !data?.length) return mockApplications;
+  if (error) throw supabaseDataError("list applications", error);
 
-  return data.map((row) => ({
+  return (data ?? []).map((row) => ({
     id: row.id,
     founder_id: userId,
     opportunity_id: row.opportunity_id ?? undefined,
@@ -42,7 +42,7 @@ export async function applyToOpportunity(input: {
   isEventApplication?: boolean;
 }) {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId("create application");
   if (!supabase || !userId) {
     return {
       id: `application-${Date.now()}`,
@@ -62,14 +62,7 @@ export async function applyToOpportunity(input: {
     .select()
     .single();
 
-  if (error || !data) {
-    return {
-      id: `application-${Date.now()}`,
-      mode: "mock-fallback" as const,
-      status: "submitted"
-    };
-  }
+  if (error || !data) throw supabaseDataError("create application", error ?? "No row returned.");
 
   return data;
 }
-

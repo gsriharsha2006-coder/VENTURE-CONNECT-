@@ -1,11 +1,11 @@
 import { ideaWorkspaces as mockIdeaWorkspaces } from "@/lib/data";
-import { getBrowserSupabase, getCurrentUserId } from "@/lib/data/shared";
+import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
 import { completionPercent, emptySectionsForTemplate, getTemplateDef } from "@/lib/templates";
-import type { IdeaStatus, IdeaWorkspaceItem, WorkspaceTemplate } from "@/lib/types";
+import type { IdeaStatus, IdeaWorkspaceItem, StartupStage, WorkspaceTemplate, WorkspaceVisibility } from "@/lib/types";
 
 function normalizeStatus(status?: string | null): IdeaStatus {
   if (status === "Complete" || status?.toLowerCase() === "complete") return "Complete";
-  if (status === "In Progress" || status?.toLowerCase() === "in progress") return "In Progress";
+  if (status === "In Progress" || ["in progress", "in_progress"].includes(status?.toLowerCase() ?? "")) return "In Progress";
   return "Draft";
 }
 
@@ -16,6 +16,14 @@ function normalizeTemplate(template?: string | null): WorkspaceTemplate {
     : "startup";
 }
 
+function normalizeStage(stage?: string | null): StartupStage {
+  return ["Idea", "Prototype", "MVP", "Revenue", "Seed"].includes(stage ?? "") ? stage as StartupStage : "Idea";
+}
+
+function normalizeVisibility(visibility?: string | null): WorkspaceVisibility {
+  return visibility === "private" ? "private" : "application_only";
+}
+
 function workspaceFromRow(row: {
   id: string;
   founder_id: string | null;
@@ -23,10 +31,14 @@ function workspaceFromRow(row: {
   title: string | null;
   sections_json: unknown;
   video_link: string | null;
+  stage: string | null;
+  visibility: string | null;
+  tags: string[] | null;
   completion_percentage: number | null;
   status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  archived: boolean | null;
 }): IdeaWorkspaceItem {
   const template = normalizeTemplate(row.template_type);
   const def = getTemplateDef(template);
@@ -45,9 +57,9 @@ function workspaceFromRow(row: {
     title: row.title ?? "Untitled workspace",
     template,
     status: normalizeStatus(row.status),
-    stage: "Idea",
-    visibility: "application_only",
-    tags: [],
+    stage: normalizeStage(row.stage),
+    visibility: normalizeVisibility(row.visibility),
+    tags: row.tags ?? [],
     category: def.label,
     updatedAt: updated,
     created_at: row.created_at ?? undefined,
@@ -63,7 +75,7 @@ function workspaceFromRow(row: {
         summary: "Supabase workspace snapshot"
       }
     ],
-    archived: false,
+    archived: row.archived ?? false,
     summary: def.description,
     markdown: "",
     uniqueness: row.completion_percentage ?? completionPercent(sections, template),
@@ -81,15 +93,19 @@ function workspaceToInsert(workspace: IdeaWorkspaceItem, founderId: string) {
     title: workspace.name,
     sections_json: workspace.sections,
     video_link: workspace.video_link ?? null,
+    stage: workspace.stage,
+    visibility: workspace.visibility,
+    tags: workspace.tags,
     completion_percentage: completionPercent(workspace.sections, workspace.template),
-    status: workspace.status.toLowerCase(),
+    status: workspace.status.toLowerCase().replace(" ", "_"),
+    archived: workspace.archived,
     updated_at: new Date().toISOString()
   };
 }
 
 export async function getIdeaWorkspaces(): Promise<IdeaWorkspaceItem[]> {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId("list Idea Workspace documents");
   if (!supabase || !userId) return mockIdeaWorkspaces;
 
   const { data, error } = await supabase
@@ -98,13 +114,13 @@ export async function getIdeaWorkspaces(): Promise<IdeaWorkspaceItem[]> {
     .eq("founder_id", userId)
     .order("updated_at", { ascending: false });
 
-  if (error || !data?.length) return mockIdeaWorkspaces;
-  return data.map(workspaceFromRow);
+  if (error) throw supabaseDataError("list Idea Workspace documents", error);
+  return (data ?? []).map(workspaceFromRow);
 }
 
 export async function createIdeaWorkspace(workspace: IdeaWorkspaceItem): Promise<IdeaWorkspaceItem> {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId("create Idea Workspace document");
   if (!supabase || !userId) return workspace;
 
   const { data, error } = await supabase
@@ -113,13 +129,13 @@ export async function createIdeaWorkspace(workspace: IdeaWorkspaceItem): Promise
     .select()
     .single();
 
-  if (error || !data) return workspace;
+  if (error || !data) throw supabaseDataError("create Idea Workspace document", error ?? "No row returned.");
   return workspaceFromRow(data);
 }
 
 export async function updateIdeaWorkspace(workspace: IdeaWorkspaceItem): Promise<IdeaWorkspaceItem> {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId("update Idea Workspace document");
   if (!supabase || !userId) return workspace;
 
   const { data, error } = await supabase
@@ -130,7 +146,30 @@ export async function updateIdeaWorkspace(workspace: IdeaWorkspaceItem): Promise
     .select()
     .single();
 
-  if (error || !data) return workspace;
+  if (error || !data) throw supabaseDataError("update Idea Workspace document", error ?? "No row returned.");
   return workspaceFromRow(data);
 }
 
+export async function archiveIdeaWorkspace(workspaceId: string) {
+  const supabase = getBrowserSupabase();
+  const userId = await getCurrentUserId("archive Idea Workspace document");
+  if (!supabase || !userId) return;
+  const { error } = await supabase
+    .from("idea_workspaces")
+    .update({ archived: true, updated_at: new Date().toISOString() })
+    .eq("id", workspaceId)
+    .eq("founder_id", userId);
+  if (error) throw supabaseDataError("archive Idea Workspace document", error);
+}
+
+export async function deleteIdeaWorkspace(workspaceId: string) {
+  const supabase = getBrowserSupabase();
+  const userId = await getCurrentUserId("delete Idea Workspace document");
+  if (!supabase || !userId) return;
+  const { error } = await supabase
+    .from("idea_workspaces")
+    .delete()
+    .eq("id", workspaceId)
+    .eq("founder_id", userId);
+  if (error) throw supabaseDataError("delete Idea Workspace document", error);
+}

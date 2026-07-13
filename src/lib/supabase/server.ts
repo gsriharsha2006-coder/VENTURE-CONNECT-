@@ -1,10 +1,11 @@
+import "server-only";
+
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
 import { isSupabaseConfigured, isSupabaseServiceConfigured, warnIfSupabaseMissing } from "@/lib/supabase/isConfigured";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export function createServiceClient() {
@@ -12,7 +13,8 @@ export function createServiceClient() {
     warnIfSupabaseMissing("Supabase service client");
     return null;
   }
-  return createClient(supabaseUrl!, serviceRoleKey!, {
+  const { url } = getSupabasePublicConfig();
+  return createClient(url, serviceRoleKey!, {
     auth: { persistSession: false, autoRefreshToken: false }
   });
 }
@@ -22,8 +24,9 @@ export async function createServerSupabase() {
     warnIfSupabaseMissing("Supabase server client");
     return null;
   }
+  const { url, publishableKey } = getSupabasePublicConfig();
   const cookieStore = await cookies();
-  return createServerClient(supabaseUrl!, supabaseAnonKey!, {
+  return createServerClient(url, publishableKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -48,9 +51,9 @@ export async function getAuthUser() {
 }
 
 export async function getProfile(userId: string) {
-  const supabase = createServiceClient();
+  const supabase = await createServerSupabase();
   if (!supabase) return null;
-  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
+  const { data, error } = await supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle();
   if (error) throw error;
   return data;
 }

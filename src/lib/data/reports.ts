@@ -1,4 +1,4 @@
-import { getBrowserSupabase, getCurrentUserId } from "@/lib/data/shared";
+import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
 import type { ReportType, SubscriptionPlan, VcReportContent } from "@/lib/types";
 
 export function generateMockReport(reportType: ReportType = "Basic SWOT Report"): VcReportContent {
@@ -26,7 +26,7 @@ export async function saveGeneratedReport(input: {
   planRequired?: SubscriptionPlan;
 }) {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId("save VC Readiness Report");
   if (!supabase || !userId) return { mode: "mock-fallback" as const, report: input.report };
 
   const { data, error } = await supabase
@@ -42,7 +42,6 @@ export async function saveGeneratedReport(input: {
     .select()
     .single();
 
-  if (error || !data) return { mode: "mock-fallback" as const, report: input.report };
+  if (error || !data) throw supabaseDataError("save VC Readiness Report", error ?? "No row returned.");
   return data;
 }
-

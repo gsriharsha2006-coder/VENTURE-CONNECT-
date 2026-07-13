@@ -24,7 +24,13 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useDemoPlan } from "@/hooks/useDemoPlan";
-import { createIdeaWorkspace, getIdeaWorkspaces, updateIdeaWorkspace } from "@/lib/data/ideaWorkspaces";
+import {
+  archiveIdeaWorkspace,
+  createIdeaWorkspace,
+  deleteIdeaWorkspace,
+  getIdeaWorkspaces,
+  updateIdeaWorkspace
+} from "@/lib/data/ideaWorkspaces";
 import { ideaWorkspaces as seedWorkspaces } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase/isConfigured";
 import { PLAN_LIMITS } from "@/lib/subscription/plans";
@@ -78,18 +84,28 @@ export default function IdeaWorkspacePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [plan, setPlan] = useDemoPlan();
+  const [persistenceError, setPersistenceError] = useState("");
 
   useEffect(() => {
     let mounted = true;
 
     async function loadWorkspaces() {
       if (isSupabaseConfigured()) {
-        const remote = await getIdeaWorkspaces();
-        if (mounted && remote.length) {
-          setWorkspaces(remote);
-          setSelectedId(remote[0].id);
-          return;
+        try {
+          const remote = await getIdeaWorkspaces();
+          if (mounted) {
+            setWorkspaces(remote);
+            setSelectedId(remote[0]?.id ?? "");
+            setPersistenceError("");
+          }
+        } catch (error) {
+          if (mounted) {
+            setWorkspaces([]);
+            setSelectedId("");
+            setPersistenceError(error instanceof Error ? error.message : "Unable to load Idea Workspace documents from Supabase.");
+          }
         }
+        return;
       }
 
       const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -113,6 +129,7 @@ export default function IdeaWorkspacePage() {
   }, []);
 
   useEffect(() => {
+    if (isSupabaseConfigured()) return;
     const timer = window.setTimeout(() => {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(workspaces));
       setAutosave(`Autosaved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
@@ -158,7 +175,9 @@ export default function IdeaWorkspacePage() {
         )
       );
       if (isSupabaseConfigured() && !selected.id.startsWith("workspace-") && !selected.id.startsWith("ws-")) {
-        void updateIdeaWorkspace(nextWorkspace);
+        void updateIdeaWorkspace(nextWorkspace)
+          .then(() => setPersistenceError(""))
+          .catch((error) => setPersistenceError(error instanceof Error ? error.message : "Unable to save this document to Supabase."));
       }
     },
     [selected]
@@ -197,18 +216,52 @@ export default function IdeaWorkspacePage() {
     };
     setWorkspaces((w) => [copy, ...w]);
     setSelectedId(copy.id);
+    if (isSupabaseConfigured()) {
+      void createIdeaWorkspace(copy).then((saved) => {
+        setWorkspaces((current) => current.map((item) => item.id === copy.id ? saved : item));
+        setSelectedId(saved.id);
+        setPersistenceError("");
+      }).catch((error) => {
+        setWorkspaces((current) => current.filter((item) => item.id !== copy.id));
+        setSelectedId(selected.id);
+        setPersistenceError(error instanceof Error ? error.message : "Unable to duplicate this document in Supabase.");
+      });
+    }
   }
 
-  function archiveWorkspace() {
+  async function archiveWorkspace() {
     if (!selected) return;
-    updateSelected({ archived: true });
+    if (isSupabaseConfigured()) {
+      try {
+        await archiveIdeaWorkspace(selected.id);
+        setPersistenceError("");
+      } catch (error) {
+        setPersistenceError(error instanceof Error ? error.message : "Unable to archive this document in Supabase.");
+        return;
+      }
+    }
+    setWorkspaces((current) => current.map((workspace) => workspace.id === selected.id ? { ...workspace, archived: true } : workspace));
     const remaining = workspaces.filter((w) => w.id !== selected.id && !w.archived);
-    if (remaining.length) setSelectedId(remaining[0].id);
+    setSelectedId(remaining[0]?.id ?? "");
   }
 
-  function deleteWorkspace() {
+  async function deleteWorkspace() {
     if (!selected) return;
+    if (isSupabaseConfigured()) {
+      try {
+        await deleteIdeaWorkspace(selected.id);
+        setPersistenceError("");
+      } catch (error) {
+        setPersistenceError(error instanceof Error ? error.message : "Unable to delete this document from Supabase.");
+        return;
+      }
+    }
     const next = workspaces.filter((w) => w.id !== selected.id);
+    if (isSupabaseConfigured()) {
+      setWorkspaces(next);
+      setSelectedId(next[0]?.id ?? "");
+      return;
+    }
     const fallback = createBlankWorkspace();
     setWorkspaces(next.length ? next : [fallback]);
     setSelectedId(next[0]?.id ?? fallback.id);
@@ -233,9 +286,13 @@ export default function IdeaWorkspacePage() {
     setActiveSection(getTemplateDef(template).sections[0].key);
     if (isSupabaseConfigured()) {
       void createIdeaWorkspace(ws).then((saved) => {
-        if (saved.id === ws.id) return;
         setWorkspaces((current) => current.map((item) => (item.id === ws.id ? saved : item)));
         setSelectedId(saved.id);
+        setPersistenceError("");
+      }).catch((error) => {
+        setWorkspaces((current) => current.filter((item) => item.id !== ws.id));
+        setSelectedId("");
+        setPersistenceError(error instanceof Error ? error.message : "Unable to create this document in Supabase.");
       });
     }
   }
@@ -265,7 +322,26 @@ export default function IdeaWorkspacePage() {
     updateSelected({ status: nextStatus });
   }
 
-  if (!selected) return null;
+  if (!selected) {
+    return (
+      <div className="space-y-4">
+        {persistenceError ? (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800">{persistenceError}</div>
+        ) : null}
+        <Card className="p-8 text-center">
+          <Badge>Idea Workspace</Badge>
+          <h1 className="mt-4 text-2xl font-semibold">No Idea Workspace documents yet</h1>
+          <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
+            Create your first Startup Template. When Supabase is configured, it will be saved to your authenticated founder account.
+          </p>
+          <Button className="mt-5" onClick={() => createFromTemplate("startup")}>
+            <LayoutTemplate size={16} />
+            Create first workspace
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   const sectionMeta = templateDef.sections.find((s) => s.key === activeSection);
 
@@ -309,6 +385,10 @@ export default function IdeaWorkspacePage() {
           </Button>
         </div>
       </motion.div>
+
+      {persistenceError ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800">{persistenceError}</div>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <Card className="p-4 lg:col-span-1">

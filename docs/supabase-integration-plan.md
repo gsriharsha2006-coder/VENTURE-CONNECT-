@@ -2,9 +2,7 @@
 
 ## Current state
 
-Venture Connect is a completed mock/demo MVP with 63 built routes. Founder, investor/organizer, service provider, and admin workflows remain mock-first so the app can run without external credentials.
-
-The workspace still has a `.git` directory that is not a valid Git repository, so Git commands are not the source of truth for this handoff. Build output, route generation, file inspection, and runtime QA are the source of truth.
+Venture Connect keeps a no-credentials demo mode while supporting real Supabase email/password authentication, cookie-based sessions, role-aware routing, profile creation, and founder Idea Workspace persistence when public Supabase variables are configured. The repository is connected to GitHub and `main` is the delivery branch.
 
 ## Phase 2 scope
 
@@ -19,10 +17,12 @@ This phase adds a Supabase foundation without replacing the existing mock MVP:
 
 ## Environment variables
 
-Supabase is enabled only when both public keys exist:
+Supabase is enabled only when the project URL and a public key exist:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` remains a temporary backward-compatible fallback.
 
 Server/admin paths can also use:
 
@@ -32,7 +32,7 @@ If Supabase variables are missing, the app should not crash. In development it e
 
 ## What remains mock-first
 
-- Authentication gracefully stays in prototype mode without Supabase keys.
+- Authentication stays in prototype mode only without Supabase keys.
 - Idea Workspace still autosaves locally when Supabase is missing.
 - VC Readiness Report still uses mock AI report generation.
 - Opportunities, applications, messaging, and services retain the current demo data and gating rules without Supabase.
@@ -50,8 +50,7 @@ Do not start these integrations in this phase:
 
 1. Create a real Supabase project and run `supabase/schema.sql`.
 2. Add Supabase credentials to `.env.local`.
-3. Test Auth sign-up and role-specific profile creation.
+3. Follow `docs/production-supabase-setup.md` to test Auth and persistence.
 4. Seed initial demo rows or create admin tooling for first data.
 5. Add Supabase Storage buckets for uploaded documents and certificates.
 6. Only after this foundation is accepted, begin Razorpay and real AI provider integration.
-

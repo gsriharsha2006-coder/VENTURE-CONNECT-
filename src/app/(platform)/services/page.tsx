@@ -35,6 +35,7 @@ export default function ServicesPage() {
   const [plan, setPlan] = useState<SubscriptionPlan>("Free");
   const [servicePosts, setServicePosts] = useState(seedServicePosts);
   const [serviceProviders, setServiceProviders] = useState(seedServiceProviders);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -42,6 +43,9 @@ export default function ServicesPage() {
       if (!mounted) return;
       setServicePosts(posts);
       setServiceProviders(providers);
+      setLoadError("");
+    }).catch((error) => {
+      if (mounted) setLoadError(error instanceof Error ? error.message : "Unable to load services from Supabase.");
     });
     return () => {
       mounted = false;
@@ -70,6 +74,10 @@ export default function ServicesPage() {
           Discover verified providers for patent, legal, compliance, deck, finance, product, and marketing needs. Only admin-verified providers can receive founder requests.
         </p>
       </Card>
+
+      {loadError ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800">{loadError}</div>
+      ) : null}
 
       <Card>
         <div className="grid gap-3 lg:grid-cols-[1fr_240px_180px]">

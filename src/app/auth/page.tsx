@@ -15,6 +15,7 @@ import { VentureLogo } from "@/components/brand/VentureLogo";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { authRedirectTo, isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { dashboardForRole, toDatabaseRole } from "@/lib/auth/roles";
 import type { UserRole } from "@/lib/types";
 
 type AuthMode = "login" | "signup";
@@ -28,13 +29,6 @@ const roleCards: Array<{ role: UserRole; title: string; description: string }> =
   { role: "Service Provider", title: "Service Provider", description: "Offer startup services after verification" }
 ];
 
-function dashboardForRole(role: UserRole) {
-  if (role === "Investor" || role === "Incubator" || role === "Hackathon Organizer" || role === "Event Organizer") return "/investor/discover";
-  if (role === "Service Provider") return "/provider/dashboard";
-  if (role === "Admin") return "/admin";
-  return "/dashboard";
-}
-
 function companyLabel(role: UserRole) {
   if (role === "Founder") return "Startup/Company name (optional)";
   if (role === "Investor") return "Fund/Firm name (optional)";
@@ -45,6 +39,7 @@ function companyLabel(role: UserRole) {
 }
 
 export default function AuthPage() {
+  const supabaseReady = isSupabaseConfigured();
   const [mode, setMode] = useState<AuthMode>("signup");
   const [role, setRole] = useState<UserRole>("Founder");
   const [fullName, setFullName] = useState("");
@@ -57,10 +52,31 @@ export default function AuthPage() {
   const [website, setWebsite] = useState("");
   const [experience, setExperience] = useState("");
   const [cgpdtm, setCgpdtm] = useState("");
-  const [status, setStatus] = useState("Development/demo mode is active. Authentication is not persisted.");
-  const supabaseReady = isSupabaseConfigured();
+  const [status, setStatus] = useState(
+    supabaseReady
+      ? "Live Supabase authentication is ready."
+      : "Development/demo mode is active. Authentication is not persisted."
+  );
 
-  const redirectTo = useMemo(() => `${authRedirectTo}${dashboardForRole(role)}`, [role]);
+  const redirectTo = useMemo(
+    () => `${authRedirectTo}/auth/callback?next=${encodeURIComponent(dashboardForRole(role))}`,
+    [role]
+  );
+
+  async function redirectAuthenticatedUser(userId: string) {
+    if (!supabase) return;
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error || !profile) {
+      await supabase.auth.signOut();
+      setStatus(error?.message ?? "Your account is missing a Venture Connect profile. Run the production schema and try again.");
+      return;
+    }
+    window.location.assign(dashboardForRole(profile.role));
+  }
 
   async function handleSubmit() {
     if (!email || !password) {
@@ -74,13 +90,13 @@ export default function AuthPage() {
     }
 
     if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: redirectTo,
           data: {
-            role,
+            role: toDatabaseRole(role),
             full_name: fullName || email.split("@")[0],
             company_name: companyName,
             phone,
@@ -92,13 +108,38 @@ export default function AuthPage() {
           }
         }
       });
-      setStatus(error ? error.message : `Signup started for ${email}. Check your inbox.`);
+      if (error) {
+        setStatus(error.message);
+        return;
+      }
+      if (data.session && data.user) {
+        await redirectAuthenticatedUser(data.user.id);
+        return;
+      }
+      setStatus(`Signup started for ${email}. Check your inbox to confirm the account.`);
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setStatus(error.message);
-    else window.location.href = dashboardForRole(role);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setStatus(error.message);
+      return;
+    }
+    if (data.user) await redirectAuthenticatedUser(data.user.id);
+  }
+
+  async function handlePasswordReset() {
+    if (!email) {
+      setStatus("Enter your email address, then request a password reset.");
+      return;
+    }
+    if (!supabase) {
+      setStatus("Configure Supabase before testing password recovery.");
+      return;
+    }
+    const recoveryRedirect = `${authRedirectTo}/auth/callback?next=${encodeURIComponent("/auth/update-password")}`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: recoveryRedirect });
+    setStatus(error ? error.message : `Password recovery instructions were sent to ${email}.`);
   }
 
   return (
@@ -248,6 +289,11 @@ export default function AuthPage() {
                 {mode === "signup" ? "Create account" : "Login"}
                 <ArrowRight size={17} />
               </Button>
+              {mode === "login" && supabaseReady ? (
+                <button type="button" onClick={handlePasswordReset} className="mt-3 text-sm font-semibold text-primary">
+                  Forgot password?
+                </button>
+              ) : null}
               <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm leading-6 text-blue-900">{status}</div>
               {!supabaseReady ? (
                 <div className="mt-4 flex flex-col gap-1">

@@ -1,5 +1,7 @@
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
+
 const SUPABASE_WARNING =
-  "Supabase is not configured. Venture Connect is running with mock/demo data. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable Supabase.";
+  "Supabase is not configured. Venture Connect is running with mock/demo data. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to enable Supabase (NEXT_PUBLIC_SUPABASE_ANON_KEY is temporarily supported).";
 
 let warned = false;
 
@@ -8,7 +10,8 @@ function hasValue(value: string | undefined) {
 }
 
 export function isSupabaseConfigured() {
-  return hasValue(process.env.NEXT_PUBLIC_SUPABASE_URL) && hasValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const { url, publishableKey } = getSupabasePublicConfig();
+  return hasValue(url) && hasValue(publishableKey);
 }
 
 export function isSupabaseServiceConfigured() {
@@ -20,4 +23,3 @@ export function warnIfSupabaseMissing(context = "Venture Connect") {
   warned = true;
   console.warn(`[${context}] ${SUPABASE_WARNING}`);
 }
-

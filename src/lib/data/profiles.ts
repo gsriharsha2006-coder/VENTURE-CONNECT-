@@ -1,5 +1,6 @@
-import { getBrowserSupabase, getCurrentUserId, normalizePlan } from "@/lib/data/shared";
-import type { Profile, UserRole } from "@/lib/types";
+import { getBrowserSupabase, getCurrentUserId, normalizePlan, supabaseDataError } from "@/lib/data/shared";
+import { toUserRole } from "@/lib/auth/roles";
+import type { Profile } from "@/lib/types";
 
 export const mockCurrentProfile: Profile = {
   id: "prototype-founder",
@@ -19,7 +20,7 @@ export const mockCurrentProfile: Profile = {
 
 export async function getCurrentProfile(): Promise<Profile> {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId("load current profile");
   if (!supabase || !userId) return mockCurrentProfile;
 
   const { data, error } = await supabase
@@ -28,7 +29,7 @@ export async function getCurrentProfile(): Promise<Profile> {
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (error || !data) return { ...mockCurrentProfile, user_id: userId };
+  if (error || !data) throw supabaseDataError("load current profile", error ?? "Profile row is missing.");
 
   return {
     ...mockCurrentProfile,
@@ -38,10 +39,9 @@ export async function getCurrentProfile(): Promise<Profile> {
     company_name: data.company_name ?? undefined,
     email: data.email ?? mockCurrentProfile.email,
     phone: data.phone ?? undefined,
-    role: (data.role as UserRole) || "Founder",
+    role: toUserRole(data.role),
     plan: normalizePlan(data.plan),
     trust_score: data.trust_score ?? 0,
     verification_status: data.verification_status === "verified" ? "Verified" : "Pending"
   };
 }
-

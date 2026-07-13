@@ -62,13 +62,19 @@ export default function OpportunitiesPage() {
   const [workspaceId, setWorkspaceId] = useState(ideaWorkspaces[0].id);
   const [applied, setApplied] = useState<string[]>([]);
   const [warning, setWarning] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [plan, setPlan] = useDemoPlan();
   const categories = useMemo(() => ["All", ...Array.from(new Set(opportunities.map((item) => item.category)))], [opportunities]);
 
   useEffect(() => {
     let mounted = true;
     void getOpportunities().then((items) => {
-      if (mounted && items.length) setOpportunities(items);
+      if (mounted) {
+        setOpportunities(items);
+        setLoadError("");
+      }
+    }).catch((error) => {
+      if (mounted) setLoadError(error instanceof Error ? error.message : "Unable to load opportunities from Supabase.");
     });
     return () => {
       mounted = false;
@@ -165,6 +171,10 @@ export default function OpportunitiesPage() {
           Browse investor opportunities, incubator programs, hackathons, grants, competitions, fellowships, AI challenges, and events. Non-event applications require a complete Idea Workspace document.
         </p>
       </motion.div>
+
+      {loadError ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800">{loadError}</div>
+      ) : null}
 
       <Card>
         <div className="grid gap-3 xl:grid-cols-[1fr_220px_180px_160px_auto]">

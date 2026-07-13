@@ -1,5 +1,5 @@
 import { servicePosts as mockServicePosts, serviceProviders as mockServiceProviders, serviceRequests as mockServiceRequests } from "@/lib/data";
-import { getBrowserSupabase, getCurrentUserId } from "@/lib/data/shared";
+import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
 import type { ServiceCategory, ServicePost, ServiceProvider, ServiceRequest } from "@/lib/types";
 
 function normalizeProviderStatus(status?: string | null): ServiceProvider["verification_status"] {
@@ -86,19 +86,18 @@ export async function getServicePosts(): Promise<{ posts: ServicePost[]; provide
     supabase.from("service_posts").select("*").order("created_at", { ascending: false })
   ]);
 
-  if (providerError || postError || !providers?.length || !posts?.length) {
-    return { posts: mockServicePosts, providers: mockServiceProviders };
-  }
+  if (providerError) throw supabaseDataError("list service providers", providerError);
+  if (postError) throw supabaseDataError("list service posts", postError);
 
   return {
-    posts: posts.map(postFromRow),
-    providers: providers.map(providerFromRow)
+    posts: (posts ?? []).map(postFromRow),
+    providers: (providers ?? []).map(providerFromRow)
   };
 }
 
 export async function createServiceProviderProfile(input: Partial<ServiceProvider>) {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId("create service provider profile");
   if (!supabase || !userId) return { mode: "mock-fallback" as const, provider: input };
 
   const { data, error } = await supabase
@@ -119,13 +118,14 @@ export async function createServiceProviderProfile(input: Partial<ServiceProvide
     .select()
     .single();
 
-  if (error || !data) return { mode: "mock-fallback" as const, provider: input };
+  if (error || !data) throw supabaseDataError("create service provider profile", error ?? "No row returned.");
   return providerFromRow(data);
 }
 
 export async function createServicePost(input: Partial<ServicePost>) {
   const supabase = getBrowserSupabase();
-  if (!supabase || !input.provider_id) return { mode: "mock-fallback" as const, post: input };
+  if (!supabase) return { mode: "mock-fallback" as const, post: input };
+  if (!input.provider_id) throw supabaseDataError("create service post", "A provider id is required.");
 
   const { data, error } = await supabase
     .from("service_posts")
@@ -143,13 +143,13 @@ export async function createServicePost(input: Partial<ServicePost>) {
     .select()
     .single();
 
-  if (error || !data) return { mode: "mock-fallback" as const, post: input };
+  if (error || !data) throw supabaseDataError("create service post", error ?? "No row returned.");
   return postFromRow(data);
 }
 
 export async function createServiceRequest(input: Pick<ServiceRequest, "provider_id" | "service_post_id"> & { quotation?: string }) {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId("create service request");
   if (!supabase || !userId) {
     return {
       ...mockServiceRequests[0],
@@ -171,16 +171,7 @@ export async function createServiceRequest(input: Pick<ServiceRequest, "provider
     .select()
     .single();
 
-  if (error || !data) {
-    return {
-      ...mockServiceRequests[0],
-      id: `request-${Date.now()}`,
-      founder_id: userId,
-      provider_id: input.provider_id,
-      service_post_id: input.service_post_id
-    };
-  }
+  if (error || !data) throw supabaseDataError("create service request", error ?? "No row returned.");
 
   return data;
 }
-
