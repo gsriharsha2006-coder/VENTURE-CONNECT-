@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
 import {
   Bookmark,
   CalendarClock,
+  CheckCircle2,
   ExternalLink,
   Filter,
   MapPin,
@@ -15,16 +15,30 @@ import {
   ShieldCheck,
   TrendingUp
 } from "lucide-react";
+import { ApplicationMethodBadge } from "@/components/opportunities/ApplicationMethodBadge";
+import { ExternalRegistrationDialog } from "@/components/opportunities/ExternalRegistrationDialog";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
+import { StatusMessage } from "@/components/ui/FeedbackState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useDemoPlan } from "@/hooks/useDemoPlan";
 import { applyToOpportunity } from "@/lib/data/applications";
-import { ideaWorkspaces, opportunities as seedOpportunities } from "@/lib/data";
+import { externalRegistrations, ideaWorkspaces, opportunities as seedOpportunities } from "@/lib/data";
+import {
+  getExternalRegistrations,
+  recordOpportunityEvent,
+  updateExternalRegistration
+} from "@/lib/data/opportunity-tracking";
 import { getBadgesForWorkspace } from "@/lib/data/validations";
 import { getOpportunities } from "@/lib/data/opportunities";
 import { PLAN_LIMITS } from "@/lib/subscription/plans";
 import { completionPercent, missingRequiredSections } from "@/lib/templates";
+import {
+  applicationMethodUsesWorkspace,
+  getOpportunityApplicationMethod,
+  isExternallyManagedApplication
+} from "@/lib/opportunities/application-methods";
 import type { DomainTag, OpportunityMode, OpportunityType, StartupStage } from "@/lib/types";
 
 const opportunityTypes: Array<"All" | OpportunityType> = [
@@ -33,12 +47,17 @@ const opportunityTypes: Array<"All" | OpportunityType> = [
   "Incubator program",
   "Accelerator program",
   "Hackathon",
+  "Startup competition",
+  "Workshop",
+  "Webinar",
+  "Networking event",
   "Startup event",
   "Company challenge/debug challenge",
   "Grants",
   "Competitions",
   "Fellowships",
-  "AI challenges"
+  "AI challenges",
+  "Other"
 ];
 
 const domains: Array<"All" | DomainTag> = ["All", "AI", "SaaS", "FinTech", "HealthTech", "EdTech", "DeepTech", "AgriTech", "Consumer", "Social Impact"];
@@ -62,8 +81,13 @@ export default function OpportunitiesPage() {
   const [deadlineQuery, setDeadlineQuery] = useState("");
   const [workspaceId, setWorkspaceId] = useState(ideaWorkspaces[0].id);
   const [applied, setApplied] = useState<string[]>([]);
+  const [externalStatuses, setExternalStatuses] = useState<Record<string, string>>(() =>
+    Object.fromEntries(getExternalRegistrations(externalRegistrations).map((item) => [item.opportunity_id, item.status]))
+  );
+  const [externalConfirmId, setExternalConfirmId] = useState<string | null>(null);
   const [warning, setWarning] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useDemoPlan();
   const categories = useMemo(() => ["All", ...Array.from(new Set(opportunities.map((item) => item.category)))], [opportunities]);
 
@@ -76,10 +100,18 @@ export default function OpportunitiesPage() {
       }
     }).catch((error) => {
       if (mounted) setLoadError(error instanceof Error ? error.message : "Unable to load opportunities from Supabase.");
+    }).finally(() => {
+      if (mounted) setLoading(false);
     });
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    setExternalStatuses(
+      Object.fromEntries(getExternalRegistrations(externalRegistrations).map((item) => [item.opportunity_id, item.status]))
+    );
   }, []);
 
   const selectedWorkspace = ideaWorkspaces.find((workspace) => workspace.id === workspaceId) ?? ideaWorkspaces[0];
@@ -135,19 +167,23 @@ export default function OpportunitiesPage() {
           : opportunity
       )
     );
+    void recordOpportunityEvent({ opportunityId: id, eventType: "opportunity_saved", referralSource: "opportunity_marketplace" });
   }
 
   function apply(opportunityId: string) {
     const opportunity = opportunities.find((item) => item.id === opportunityId);
     if (!opportunity) return;
+    const applicationMethod = getOpportunityApplicationMethod(opportunity);
+    if (!applicationMethodUsesWorkspace(applicationMethod)) {
+      setWarning("This opportunity is managed by the organiser. Use the official registration action instead of submitting an Idea Workspace.");
+      return;
+    }
     const monthlyLimit = PLAN_LIMITS[plan].opportunitySubmissionsPerMonth;
     if (!applied.includes(opportunityId) && applied.length >= monthlyLimit) {
       setWarning(`${plan} allows ${monthlyLimit} opportunity submission${monthlyLimit === 1 ? "" : "s"} per month. Upgrade or wait for the monthly reset.`);
       return;
     }
-    const eventException = opportunity.opportunity_type === "Startup event";
-
-    if (!eventException && selectedCompletion < 100) {
+    if (selectedCompletion < 100) {
       const missing = missingRequiredSections(selectedWorkspace.sections, selectedWorkspace.template)
         .map((section) => section.label)
         .join(", ");
@@ -158,23 +194,55 @@ export default function OpportunitiesPage() {
     setApplied((current) => (current.includes(opportunityId) ? current : [opportunityId, ...current]));
     void applyToOpportunity({
       opportunityId,
-      ideaWorkspaceId: eventException ? null : selectedWorkspace.id,
-      isEventApplication: eventException
+      ideaWorkspaceId: selectedWorkspace.id,
+      applicationMethod
     });
-    setWarning(eventException ? "Event application submitted after guidelines review. Idea Workspace was not required." : selectedBadges.length ? "Application submitted with completed Human Reviewed Idea Workspace summary." : "Application submitted with completed Idea Workspace document.");
+    setWarning(selectedBadges.length ? "Application submitted with completed Human Reviewed Idea Workspace summary." : "Application submitted with completed Idea Workspace document.");
+  }
+
+  async function continueExternalRegistration(opportunityId: string, destination: { url: string; domain: string }) {
+    const opportunity = opportunities.find((item) => item.id === opportunityId);
+    if (!opportunity) return;
+    setExternalConfirmId(null);
+    const opened = window.open(destination.url, "_blank", "noopener,noreferrer");
+    if (opened) opened.opener = null;
+    await recordOpportunityEvent({
+      opportunityId,
+      eventType: "official_registration_clicked",
+      referralSource: "opportunity_marketplace"
+    });
+    await updateExternalRegistration({
+      opportunityId,
+      opportunityTitle: opportunity.title,
+      organizerName: opportunity.organizer_name,
+      status: "Registration Opened"
+    });
+    setExternalStatuses((current) => ({ ...current, [opportunityId]: "Registration Opened" }));
+    setWarning(`Registration opened on ${destination.domain}. Complete the organiser form, then return to mark it as applied.`);
+  }
+
+  async function markExternalApplied(opportunityId: string) {
+    const opportunity = opportunities.find((item) => item.id === opportunityId);
+    if (!opportunity) return;
+    await updateExternalRegistration({
+      opportunityId,
+      opportunityTitle: opportunity.title,
+      organizerName: opportunity.organizer_name,
+      status: "Applied Externally"
+    });
+    setExternalStatuses((current) => ({ ...current, [opportunityId]: "Applied Externally" }));
+    setWarning("External registration marked as applied and labelled Tracked by You. The organiser has not verified this status.");
   }
 
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Badge>Opportunities</Badge>
+      <PageHeader
+        eyebrow="Opportunities"
+        title="Discover the right programme, investor, or event."
+        description="Every listing shows whether you apply inside Venture Connect or continue to an organiser-managed registration page."
+        actions={
           <label className="flex h-10 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3">
-            <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">Demo plan</span>
+            <span className="text-sm font-medium text-blue-700">Demo plan</span>
             <select
               aria-label="Demo subscription plan"
               value={plan}
@@ -186,15 +254,15 @@ export default function OpportunitiesPage() {
               <option>Founder Pro</option>
             </select>
           </label>
-        </div>
-        <h1 className="mt-3 text-3xl font-semibold tracking-normal text-slate-950">Structured opportunity discovery and applications</h1>
-        <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">
-          Browse investor opportunities, incubator programs, hackathons, grants, competitions, fellowships, AI challenges, and events. Non-event applications require a complete Idea Workspace document.
-        </p>
-      </motion.div>
+        }
+      />
+
+      {loading ? (
+        <StatusMessage>Loading the latest opportunity methods and deadlines...</StatusMessage>
+      ) : null}
 
       {loadError ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800">{loadError}</div>
+        <StatusMessage tone="error">{loadError}</StatusMessage>
       ) : null}
 
       <Card>
@@ -208,17 +276,17 @@ export default function OpportunitiesPage() {
           ) : null}
         </div>
         <div className="grid gap-3 xl:grid-cols-[1fr_220px_180px_160px_auto]">
-          <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-blue-100">
+          <label className="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-blue-100">
             <Search size={17} className="text-slate-400" />
             <input aria-label="Search opportunities" value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none" placeholder="Search title, organizer, tags..." />
           </label>
-          <select aria-label="Opportunity type" value={type} onChange={(event) => setType(event.target.value as (typeof opportunityTypes)[number])} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 outline-none">
+          <select aria-label="Opportunity type" value={type} onChange={(event) => setType(event.target.value as (typeof opportunityTypes)[number])} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 outline-none">
             {opportunityTypes.map((item) => <option key={item}>{item}</option>)}
           </select>
-          <select aria-label="Opportunity domain" value={domain} onChange={(event) => setDomain(event.target.value as (typeof domains)[number])} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 outline-none">
+          <select aria-label="Opportunity domain" value={domain} onChange={(event) => setDomain(event.target.value as (typeof domains)[number])} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 outline-none">
             {domains.map((item) => <option key={item}>{item}</option>)}
           </select>
-          <select aria-label="Opportunity mode" value={mode} onChange={(event) => setMode(event.target.value as (typeof modes)[number])} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 outline-none">
+          <select aria-label="Opportunity mode" value={mode} onChange={(event) => setMode(event.target.value as (typeof modes)[number])} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 outline-none">
             {modes.map((item) => <option key={item}>{item}</option>)}
           </select>
           <Button variant={verifiedOnly ? "primary" : "secondary"} onClick={() => setVerifiedOnly((value) => !value)}>
@@ -244,27 +312,38 @@ export default function OpportunitiesPage() {
           <input aria-label="Funding filter" value={fundingQuery} onChange={(event) => setFundingQuery(event.target.value)} placeholder="Funding, prize, or grant" className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none" />
           <input aria-label="Eligibility filter" value={eligibilityQuery} onChange={(event) => setEligibilityQuery(event.target.value)} placeholder="Eligibility" className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none" />
           <div className="flex items-center rounded-xl border border-blue-100 bg-blue-50 px-3 text-sm text-blue-900">
-            {applied.length}/{PLAN_LIMITS[plan].opportunitySubmissionsPerMonth} monthly submissions used
+            {applied.length}/{PLAN_LIMITS[plan].opportunitySubmissionsPerMonth} internal submissions used
           </div>
         </div>
       </Card>
 
       {warning ? (
-        <div className={`rounded-lg border p-4 text-sm ${warning.includes("submitted") ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+        <div role="status" className={`rounded-lg border p-4 text-sm ${/(submitted|opened|marked|saved)/i.test(warning) ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
           {warning}
         </div>
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <div className="grid gap-4 md:grid-cols-2">
+          {!loading && filtered.length === 0 ? (
+            <Card className="md:col-span-2">
+              <CardHeader eyebrow="No results" title="No opportunities match these filters" />
+              <p className="text-sm text-slate-600">Reset filters or broaden the opportunity type, domain, or location.</p>
+              <Button variant="secondary" className="mt-4" onClick={clearFilters}>Reset filters</Button>
+            </Card>
+          ) : null}
           {filtered.map((opportunity) => {
             const didApply = applied.includes(opportunity.id);
+            const applicationMethod = getOpportunityApplicationMethod(opportunity);
+            const externallyManaged = isExternallyManagedApplication(applicationMethod);
+            const externalStatus = externalStatuses[opportunity.id];
             return (
               <Card key={opportunity.id} className="flex h-full flex-col">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="mb-3 flex flex-wrap items-center gap-2">
                       <Badge>{opportunity.opportunity_type}</Badge>
+                      <ApplicationMethodBadge method={applicationMethod} />
                       {opportunity.verified ? (
                         <Badge tone="green">
                           <ShieldCheck size={13} />
@@ -292,6 +371,12 @@ export default function OpportunitiesPage() {
                 </div>
 
                 <p className="mt-4 flex-1 text-sm leading-6 text-slate-600">{opportunity.guidelines}</p>
+                {externallyManaged ? (
+                  <p className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-blue-700">
+                    <ExternalLink size={14} />
+                    Registration is completed on the organiser&apos;s website.
+                  </p>
+                ) : null}
 
                 <div className="mt-5 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
                   <span className="inline-flex items-center gap-2"><MapPin size={16} className="text-primary" />{opportunity.location} / {opportunity.mode}</span>
@@ -302,23 +387,41 @@ export default function OpportunitiesPage() {
                   {opportunity.tags.map((tag) => <Badge key={tag} tone="slate">{tag}</Badge>)}
                 </div>
 
-                <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
-                  <div>
+                <div className="mt-5 flex flex-col items-start gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-950">{opportunity.prize_or_funding}</p>
                     <p className="text-xs text-slate-500">Quality index {opportunity.trust_score}/100</p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
                     <Link href={`/dashboard/opportunities/${opportunity.id}`}>
                       <Button size="sm" variant="secondary">
                         <ExternalLink size={14} />
                         Details
                       </Button>
                     </Link>
-                    <Button size="sm" onClick={() => apply(opportunity.id)} variant={didApply ? "secondary" : "primary"}>
-                      {didApply ? "Applied" : "Apply"}
-                    </Button>
+                    {applicationMethod === "idea_workspace_application" ? (
+                      <Button size="sm" onClick={() => apply(opportunity.id)} variant={didApply ? "secondary" : "primary"}>
+                        {didApply ? "Applied" : "Apply with Idea Workspace"}
+                      </Button>
+                    ) : externallyManaged ? (
+                      <Button size="sm" onClick={() => setExternalConfirmId(opportunity.id)}>
+                        Register
+                        <ExternalLink size={14} />
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
+                {externallyManaged && externalStatus ? (
+                  <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
+                    <p className="text-xs font-semibold text-blue-900">Tracked by You: {externalStatus}</p>
+                    {externalStatus !== "Applied Externally" ? (
+                      <button type="button" onClick={() => void markExternalApplied(opportunity.id)} className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
+                        <CheckCircle2 size={13} />
+                        Mark as Applied
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </Card>
             );
           })}
@@ -326,7 +429,7 @@ export default function OpportunitiesPage() {
 
         <aside className="space-y-4">
           <Card>
-            <CardHeader eyebrow="Application Document" title="Selected Idea Workspace" />
+            <CardHeader eyebrow="Internal applications only" title="Selected Idea Workspace" />
             <select value={workspaceId} onChange={(event) => setWorkspaceId(event.target.value)} className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none">
               {ideaWorkspaces.map((workspace) => (
                 <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
@@ -341,7 +444,7 @@ export default function OpportunitiesPage() {
                 <div className="h-full rounded-full bg-primary" style={{ width: `${selectedCompletion}%` }} />
               </div>
               <p className="mt-3 text-xs leading-5 text-slate-500">
-                Events can be submitted after reading guidelines. All other opportunity types require 100% completion.
+                Used only when an opportunity is labelled Apply with Idea Workspace. External registration and hybrid preparation are never blocked by workspace completion.
               </p>
               {selectedBadges.length ? (
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -361,7 +464,7 @@ export default function OpportunitiesPage() {
           </Card>
 
           <Card>
-            <CardHeader eyebrow="Applied" title="Application status" />
+            <CardHeader eyebrow="Venture Connect" title="Internal application status" />
             <div className="space-y-3">
               {applied.length === 0 ? (
                 <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">No applications submitted in this session yet.</p>
@@ -383,6 +486,23 @@ export default function OpportunitiesPage() {
           </Card>
 
           <Card>
+            <CardHeader eyebrow="External registrations" title="Tracked by You" />
+            <div className="space-y-3">
+              {Object.keys(externalStatuses).length === 0 ? (
+                <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">No organiser-managed registrations tracked yet.</p>
+              ) : Object.entries(externalStatuses).map(([id, status]) => {
+                const opportunity = opportunities.find((item) => item.id === id);
+                return opportunity ? (
+                  <div key={id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-sm font-semibold text-slate-950">{opportunity.title}</p>
+                    <p className="mt-1 text-xs text-slate-500">{status} / not organiser verified</p>
+                  </div>
+                ) : null;
+              })}
+            </div>
+          </Card>
+
+          <Card>
             <CardHeader eyebrow="Saved" title="Bookmarked opportunities" />
             <div className="space-y-3">
               {opportunities.filter((item) => item.saved).map((opportunity) => (
@@ -395,6 +515,14 @@ export default function OpportunitiesPage() {
           </Card>
         </aside>
       </div>
+
+      {externalConfirmId ? (
+        <ExternalRegistrationDialog
+          opportunity={opportunities.find((item) => item.id === externalConfirmId) ?? seedOpportunities[0]}
+          onCancel={() => setExternalConfirmId(null)}
+          onContinue={(destination) => void continueExternalRegistration(externalConfirmId, destination)}
+        />
+      ) : null}
     </div>
   );
 }

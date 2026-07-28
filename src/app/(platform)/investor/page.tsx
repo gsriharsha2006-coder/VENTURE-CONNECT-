@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
 import {
   Bell,
   Bookmark,
@@ -18,25 +17,25 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
+import { StatusMessage } from "@/components/ui/FeedbackState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { ApplicationMethodBadge } from "@/components/opportunities/ApplicationMethodBadge";
 import { createOpportunity } from "@/lib/data/opportunities";
 import { ideaWorkspaces, investorDashboardStats, investors, opportunities, trendingStartups } from "@/lib/data";
-import type { OpportunityType } from "@/lib/types";
+import {
+  APPLICATION_METHOD_LABELS,
+  applicationMethodNeedsExternalUrl,
+  getConfiguredApplicationDefaults,
+  OPPORTUNITY_APPLICATION_DEFAULTS,
+  OPPORTUNITY_TYPE_OPTIONS,
+  validateExternalRegistrationUrl
+} from "@/lib/opportunities/application-methods";
+import type { ApplicationMethod, OpportunityType } from "@/lib/types";
 
 const investor = investors[0];
 const filters = ["Sector", "Stage", "Location", "Readiness", "Funding ask"];
-const opportunityTypes: OpportunityType[] = [
-  "Investor opportunity",
-  "Incubator program",
-  "Accelerator program",
-  "Hackathon",
-  "Startup event",
-  "Company challenge/debug challenge",
-  "Grants",
-  "Competitions",
-  "Fellowships",
-  "AI challenges"
-];
+const opportunityTypes: OpportunityType[] = OPPORTUNITY_TYPE_OPTIONS;
 
 function readIds(key: string, fallback: string[]) {
   if (typeof window === "undefined") return fallback;
@@ -56,12 +55,25 @@ export default function InvestorPage() {
   const [activity, setActivity] = useState("");
   const [publishedTitle, setPublishedTitle] = useState("AI HealthTech seed review track");
   const [publishedType, setPublishedType] = useState<OpportunityType>("Investor opportunity");
+  const [publishedApplicationMethod, setPublishedApplicationMethod] = useState<ApplicationMethod>("idea_workspace_application");
+  const [applicationDefaults, setApplicationDefaults] = useState<Record<OpportunityType, ApplicationMethod>>({ ...OPPORTUNITY_APPLICATION_DEFAULTS });
   const [publishedDeadline, setPublishedDeadline] = useState("31 Jul 2026");
-  const [publishedPosts, setPublishedPosts] = useState<Array<{ title: string; type: OpportunityType; deadline: string }>>([]);
+  const [publishedOrganizerName, setPublishedOrganizerName] = useState(investor.firm);
+  const [publishedExternalLink, setPublishedExternalLink] = useState("");
+  const [publishedSourceVerification, setPublishedSourceVerification] = useState("");
+  const [publishedRulesUrl, setPublishedRulesUrl] = useState("");
+  const [publishedContactEmail, setPublishedContactEmail] = useState("");
+  const [publishedRegistrationFee, setPublishedRegistrationFee] = useState("");
+  const [publishedInstructions, setPublishedInstructions] = useState("");
+  const [directPartnership, setDirectPartnership] = useState(false);
+  const [publishedPosts, setPublishedPosts] = useState<Array<{ title: string; type: OpportunityType; deadline: string; applicationMethod: ApplicationMethod }>>([]);
   const selected = useMemo(() => trendingStartups.find((startup) => startup.id === selectedId) ?? trendingStartups[0], [selectedId]);
   const selectedWorkspace = ideaWorkspaces.find((workspace) => workspace.name.toLowerCase().includes(selected.name.toLowerCase().split(" ")[0])) ?? ideaWorkspaces[0];
 
   useEffect(() => {
+    const configuredDefaults = getConfiguredApplicationDefaults();
+    setApplicationDefaults(configuredDefaults);
+    setPublishedApplicationMethod(configuredDefaults["Investor opportunity"]);
     setSaved(readIds("venture-connect-investor-saved", ["startup-1"]));
     setInterested(readIds("venture-connect-investor-interested", ["startup-1"]));
   }, []);
@@ -88,15 +100,38 @@ export default function InvestorPage() {
       setActivity("Add a title and deadline before publishing.");
       return;
     }
+    if (publishedType === "Hackathon" && publishedApplicationMethod !== "external_registration" && !directPartnership) {
+      setActivity("Hackathons use External organiser registration unless a direct Venture Connect partnership is confirmed.");
+      return;
+    }
+    if (applicationMethodNeedsExternalUrl(publishedApplicationMethod)) {
+      const destination = validateExternalRegistrationUrl(publishedExternalLink);
+      if (!destination.valid) {
+        setActivity(destination.error);
+        return;
+      }
+      if (!publishedOrganizerName.trim() || !publishedSourceVerification.trim()) {
+        setActivity("External registrations require the organiser name and source verification information.");
+        return;
+      }
+    }
     setPublishedPosts((current) => [
-      { title: publishedTitle.trim(), type: publishedType, deadline: publishedDeadline.trim() },
+      { title: publishedTitle.trim(), type: publishedType, deadline: publishedDeadline.trim(), applicationMethod: publishedApplicationMethod },
       ...current
     ]);
     void createOpportunity({
       title: publishedTitle.trim(),
       type: publishedType,
       deadline: publishedDeadline.trim(),
-      organizerName: investor.firm,
+      organizerName: publishedOrganizerName.trim(),
+      applicationMethod: publishedApplicationMethod,
+      externalLink: publishedExternalLink.trim() || undefined,
+      sourceVerification: publishedSourceVerification.trim() || undefined,
+      officialRulesUrl: publishedRulesUrl.trim() || undefined,
+      contactEmail: publishedContactEmail.trim() || undefined,
+      registrationFee: publishedRegistrationFee.trim() || undefined,
+      applicationInstructions: publishedInstructions.trim() || undefined,
+      directApplicationPartner: directPartnership,
       creatorRole: "Investor"
     });
     setActivity("Opportunity submitted for admin approval and queued for founder discovery.");
@@ -113,30 +148,28 @@ export default function InvestorPage() {
 
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col justify-between gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center"
-      >
-        <div>
-          <Badge>Investor / Organizer</Badge>
-          <h1 className="mt-3 text-3xl font-semibold tracking-normal text-slate-950">{title}</h1>
-          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">{subtitle}</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        eyebrow="Investor and organiser workspace"
+        title={title}
+        description={subtitle}
+        actions={
+          <>
           <Link href="/investor/messages">
             <Button variant="secondary"><MessageSquarePlus size={16} />Messages</Button>
           </Link>
-          <Link href="/investor/post-opportunity">
-            <Button><Plus size={16} />Post Opportunity</Button>
-          </Link>
-        </div>
-      </motion.div>
+          {view !== "post-opportunity" ? (
+            <Link href="/investor/post-opportunity">
+              <Button><Plus size={16} />Post opportunity</Button>
+            </Link>
+          ) : null}
+          </>
+        }
+      />
 
       {activity ? (
-        <div className={`rounded-lg border p-4 text-sm ${activity.includes("updated") || activity.includes("approval") ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+        <StatusMessage tone={activity.includes("updated") || activity.includes("approval") ? "success" : "error"}>
           {activity}
-        </div>
+        </StatusMessage>
       ) : null}
 
       {view === "discover" ? (
@@ -152,13 +185,13 @@ export default function InvestorPage() {
           </div>
 
           <Card>
-            <div className="grid gap-3 lg:grid-cols-[1fr_repeat(5,140px)_auto]">
-              <label className="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <label className="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 lg:col-span-2">
                 <Search size={17} className="text-slate-400" />
-                <input className="w-full bg-transparent text-sm outline-none" placeholder="Search startup, founder, sector..." />
+                <input aria-label="Search startup applications" className="w-full bg-transparent text-sm outline-none" placeholder="Search startup, founder, sector..." />
               </label>
               {filters.map((filter) => (
-                <select key={filter} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 outline-none">
+                <select key={filter} aria-label={`Filter by ${filter.toLowerCase()}`} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 outline-none">
                   <option>{filter}</option>
                   <option>AI</option>
                   <option>MVP</option>
@@ -303,8 +336,17 @@ export default function InvestorPage() {
                 <input value={publishedTitle} onChange={(event) => setPublishedTitle(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none" />
               </label>
               <label>
-                <span className="text-sm font-semibold">Opportunity type</span>
-                <select value={publishedType} onChange={(event) => setPublishedType(event.target.value as OpportunityType)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">
+                <span className="text-sm font-semibold">Opportunity category</span>
+                <select
+                  value={publishedType}
+                  onChange={(event) => {
+                    const nextType = event.target.value as OpportunityType;
+                    setPublishedType(nextType);
+                    setPublishedApplicationMethod(nextType === "Hackathon" ? "external_registration" : applicationDefaults[nextType]);
+                    setDirectPartnership(false);
+                  }}
+                  className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                >
                   {opportunityTypes.map((item) => <option key={item}>{item}</option>)}
                 </select>
               </label>
@@ -312,6 +354,63 @@ export default function InvestorPage() {
                 <span className="text-sm font-semibold">Deadline</span>
                 <input value={publishedDeadline} onChange={(event) => setPublishedDeadline(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none" />
               </label>
+              <label>
+                <span className="text-sm font-semibold">Application method</span>
+                <select
+                  value={publishedApplicationMethod}
+                  disabled={publishedType === "Hackathon" && !directPartnership}
+                  onChange={(event) => setPublishedApplicationMethod(event.target.value as ApplicationMethod)}
+                  className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm disabled:bg-slate-100"
+                >
+                  {Object.entries(APPLICATION_METHOD_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+              <label>
+                <span className="text-sm font-semibold">Organiser name</span>
+                <input value={publishedOrganizerName} onChange={(event) => setPublishedOrganizerName(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none" />
+              </label>
+              {publishedType === "Hackathon" ? (
+                <label className="md:col-span-2 flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+                  <input
+                    type="checkbox"
+                    checked={directPartnership}
+                    onChange={(event) => {
+                      setDirectPartnership(event.target.checked);
+                      if (!event.target.checked) setPublishedApplicationMethod("external_registration");
+                    }}
+                    className="mt-0.5"
+                  />
+                  <span><strong>Confirmed direct application partnership</strong><br />Only enable this when the organiser has approved Venture Connect as an official application system.</span>
+                </label>
+              ) : null}
+              {applicationMethodNeedsExternalUrl(publishedApplicationMethod) ? (
+                <>
+                  <label className="md:col-span-2">
+                    <span className="text-sm font-semibold">Official application URL</span>
+                    <input value={publishedExternalLink} onChange={(event) => setPublishedExternalLink(event.target.value)} placeholder="https://organiser.example/register" className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none" />
+                  </label>
+                  <label className="md:col-span-2">
+                    <span className="text-sm font-semibold">Source or verification information</span>
+                    <input value={publishedSourceVerification} onChange={(event) => setPublishedSourceVerification(event.target.value)} placeholder="Official organiser page reviewed on..." className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none" />
+                  </label>
+                  <label>
+                    <span className="text-sm font-semibold">Official rules URL</span>
+                    <input value={publishedRulesUrl} onChange={(event) => setPublishedRulesUrl(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none" />
+                  </label>
+                  <label>
+                    <span className="text-sm font-semibold">Contact email</span>
+                    <input type="email" value={publishedContactEmail} onChange={(event) => setPublishedContactEmail(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none" />
+                  </label>
+                  <label>
+                    <span className="text-sm font-semibold">Registration fee</span>
+                    <input value={publishedRegistrationFee} onChange={(event) => setPublishedRegistrationFee(event.target.value)} placeholder="Free or fee amount" className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none" />
+                  </label>
+                  <label>
+                    <span className="text-sm font-semibold">Application instructions</span>
+                    <input value={publishedInstructions} onChange={(event) => setPublishedInstructions(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none" />
+                  </label>
+                </>
+              ) : null}
               {["Category", "Funding / prize / grant", "Eligibility", "Location", "Mode", "Startup stage", "Domain"].map((label) => (
                 <label key={label}>
                   <span className="text-sm font-semibold">{label}</span>
@@ -333,6 +432,7 @@ export default function InvestorPage() {
                   <Badge tone="amber">Pending approval</Badge>
                   <p className="mt-2 text-sm font-semibold">{post.title}</p>
                   <p className="mt-1 text-xs text-slate-600">{post.type} / {post.deadline}</p>
+                  <div className="mt-2"><ApplicationMethodBadge method={post.applicationMethod} /></div>
                 </div>
               ))}
               {opportunities.slice(0, 4).map((opportunity) => (

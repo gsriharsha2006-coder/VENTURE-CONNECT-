@@ -137,6 +137,6 @@ Never expose an admin-role assignment endpoint to public signup.
 ## Deferred integrations
 
 - Supabase Storage for workspace uploads and provider certificates
-- Gemini or another production AI provider
+- OpenAI VC Readiness Report generation (configured separately with a server-only key)
 - Vercel production deployment and domain configuration
 - Payments and subscription webhooks

@@ -7,6 +7,7 @@ import { Calendar, LockKeyhole, MessageCircle, Send, Video } from "lucide-react"
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/FeedbackState";
 import { messageThreads } from "@/lib/data";
 import { createInterestedConversation } from "@/lib/data/messages";
 
@@ -27,11 +28,11 @@ export function MessagingPanel() {
 
   if (!selected) {
     return (
-      <Card className="p-8 text-center">
-        <MessageCircle className="mx-auto text-primary" size={40} />
-        <h2 className="mt-4 text-xl font-semibold">No interest-led conversations yet</h2>
-        <p className="mt-2 text-sm text-slate-600">Conversations appear only after an investor or incubator marks Interested.</p>
-      </Card>
+      <EmptyState
+        title="No interest-led conversations yet"
+        description="Conversations appear only after an investor or incubator marks an application Interested."
+        icon={MessageCircle}
+      />
     );
   }
 
@@ -66,6 +67,7 @@ export function MessagingPanel() {
             <button
               key={thread.id}
               type="button"
+              aria-pressed={selectedId === thread.id}
               onClick={() => setSelectedId(thread.id)}
               className={`w-full border-b border-slate-100 p-4 text-left transition hover:bg-slate-50 ${selectedId === thread.id ? "bg-blue-50" : ""}`}
             >
@@ -95,12 +97,14 @@ export function MessagingPanel() {
               </div>
               <p className="mt-1 text-xs text-slate-500">{selected.investor} / {selected.firm}</p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="secondary" size="sm" disabled={lockedForFree}>
+            {investorMode ? (
+              <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setMessageType("Meeting")}>
                 <Video size={14} />
                 Meeting
               </Button>
-            </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -130,7 +134,7 @@ export function MessagingPanel() {
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
           <div className="max-w-[80%] rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-800">
             <p>{selected.lastMessage}</p>
-            <p className="mt-1 text-[10px] text-slate-500">{lockedForFree ? "Feedback preview" : "Investor message"}</p>
+            <p className="mt-1 text-xs text-slate-500">{lockedForFree ? "Feedback preview" : "Investor message"}</p>
           </div>
 
           {!lockedForFree && sent.map((message, index) => (
@@ -143,21 +147,22 @@ export function MessagingPanel() {
         <div className="border-t border-slate-200 p-4">
           {investorMode ? (
             <div className="mb-3 grid gap-2 sm:grid-cols-3">
-              <select value={messageType} onChange={(event) => setMessageType(event.target.value as "Message" | "Feedback" | "Meeting")} className="h-10 rounded-lg border border-slate-200 px-3 text-sm">
+              <select aria-label="Message type" value={messageType} onChange={(event) => setMessageType(event.target.value as "Message" | "Feedback" | "Meeting")} className="h-10 rounded-lg border border-slate-200 px-3 text-sm">
                 <option>Message</option>
                 <option>Feedback</option>
                 <option>Meeting</option>
               </select>
               {messageType === "Meeting" ? (
                 <>
-                  <input type="datetime-local" value={meetingTime} onChange={(event) => setMeetingTime(event.target.value)} className="h-10 rounded-lg border border-slate-200 px-3 text-sm" />
-                  <input type="url" value={meetingLink} onChange={(event) => setMeetingLink(event.target.value)} placeholder="Zoom, Meet, or external link" className="h-10 rounded-lg border border-slate-200 px-3 text-sm" />
+                  <input aria-label="Meeting date and time" type="datetime-local" value={meetingTime} onChange={(event) => setMeetingTime(event.target.value)} className="h-10 rounded-lg border border-slate-200 px-3 text-sm" />
+                  <input aria-label="Meeting link" type="url" value={meetingLink} onChange={(event) => setMeetingLink(event.target.value)} placeholder="Zoom, Meet, or external link" className="h-10 rounded-lg border border-slate-200 px-3 text-sm" />
                 </>
               ) : null}
             </div>
           ) : null}
           <div className="flex gap-2">
             <input
+              aria-label="Conversation message"
               value={draft}
               disabled={lockedForFree}
               onChange={(event) => setDraft(event.target.value)}
@@ -165,7 +170,7 @@ export function MessagingPanel() {
               placeholder={lockedForFree ? "Upgrade to reply after investor interest" : investorMode ? `Send ${messageType.toLowerCase()}...` : "Reply after interest..."}
               className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary disabled:bg-slate-50"
             />
-            <Button onClick={sendMessage} disabled={lockedForFree}>
+            <Button aria-label="Send message" onClick={sendMessage} disabled={lockedForFree}>
               <Send size={16} />
             </Button>
           </div>

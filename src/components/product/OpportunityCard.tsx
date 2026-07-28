@@ -1,10 +1,15 @@
-import { Bookmark, CalendarClock, MapPin, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { Bookmark, CalendarClock, ExternalLink, MapPin, ShieldCheck } from "lucide-react";
+import { ApplicationMethodBadge } from "@/components/opportunities/ApplicationMethodBadge";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { getOpportunityApplicationMethod, isExternallyManagedApplication } from "@/lib/opportunities/application-methods";
 import type { Opportunity } from "@/lib/types";
 
 export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
+  const method = getOpportunityApplicationMethod(opportunity);
+  const external = isExternallyManagedApplication(method);
   return (
     <Card className="flex h-full flex-col">
       <div className="flex items-start justify-between gap-3">
@@ -13,6 +18,7 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
             <Badge tone={opportunity.premium ? "amber" : "blue"}>
               {opportunity.premium ? "Premium" : opportunity.type}
             </Badge>
+            <ApplicationMethodBadge method={method} />
             {opportunity.verified ? (
               <Badge tone="green">
                 <ShieldCheck size={13} />
@@ -50,7 +56,12 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
           <p className="text-sm font-semibold text-slate-950">{opportunity.funding}</p>
           <p className="text-xs text-slate-500">{opportunity.applicants} applicants</p>
         </div>
-        <Button size="sm">Apply</Button>
+        <Link href={`/dashboard/opportunities/${opportunity.id}`}>
+          <Button size="sm">
+            {external ? <ExternalLink size={14} /> : null}
+            {external ? "View registration" : method === "idea_workspace_application" ? "View application" : "Details"}
+          </Button>
+        </Link>
       </div>
     </Card>
   );

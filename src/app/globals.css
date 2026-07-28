@@ -34,9 +34,7 @@ body {
   margin: 0;
   min-width: 320px;
   color: var(--ink);
-  background:
-    linear-gradient(180deg, rgba(239, 246, 255, 0.7) 0%, rgba(255, 255, 255, 0) 38rem),
-    #ffffff;
+  background: #ffffff;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   text-rendering: optimizeLegibility;
 }
@@ -112,9 +110,9 @@ a:focus-visible {
 }
 
 .premium-card {
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.065);
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .interactive-card {
@@ -123,14 +121,13 @@ a:focus-visible {
 
 .interactive-card:hover {
   border-color: rgba(59, 130, 246, 0.32);
-  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.09);
-  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.07);
 }
 
 .app-page {
   margin-inline: auto;
   width: 100%;
-  max-width: 1600px;
+  max-width: 1440px;
 }
 
 html.dark .premium-card,

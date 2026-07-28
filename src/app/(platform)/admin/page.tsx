@@ -1,16 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
 import { Ban, CheckCircle2, ShieldCheck, UserCheck, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { StatusMessage } from "@/components/ui/FeedbackState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { adminStats, applications, opportunities, reportSuite, serviceProviders } from "@/lib/data";
 import { validationBadges, validationBookings, validationReports, validators } from "@/lib/data/validations";
-import type { ServiceVerificationStatus, SubscriptionPlan } from "@/lib/types";
+import {
+  APPLICATION_METHOD_LABELS,
+  getConfiguredApplicationDefaults,
+  OPPORTUNITY_APPLICATION_DEFAULTS,
+  OPPORTUNITY_TYPE_OPTIONS,
+  saveConfiguredApplicationDefault
+} from "@/lib/opportunities/application-methods";
+import type { ApplicationMethod, OpportunityType, ServiceVerificationStatus, SubscriptionPlan } from "@/lib/types";
 import { validationServices, validatorLevelRules } from "@/lib/validation/config";
 import type { ValidatorLevel } from "@/lib/validation/types";
 
@@ -28,7 +36,12 @@ export default function AdminPage() {
   const [opportunityStatuses, setOpportunityStatuses] = useState<Record<string, "Approved" | "Rejected">>({});
   const [validatorStatuses, setValidatorStatuses] = useState<Record<string, "Approved" | "Rejected" | "Suspended">>({});
   const [validatorLimits, setValidatorLimits] = useState<Record<string, ValidatorLevel>>({});
+  const [applicationDefaults, setApplicationDefaults] = useState<Record<OpportunityType, ApplicationMethod>>({ ...OPPORTUNITY_APPLICATION_DEFAULTS });
   const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    setApplicationDefaults(getConfiguredApplicationDefaults());
+  }, []);
 
   function setProviderStatus(id: string, status: ServiceVerificationStatus) {
     setProviderStatuses((current) => ({ ...current, [id]: status }));
@@ -57,17 +70,9 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
-      >
-        <Badge>Admin</Badge>
-        <h1 className="mt-3 text-3xl font-semibold text-slate-950">{title}</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-600">{subtitle}</p>
-      </motion.div>
+      <PageHeader eyebrow="Administration" title={title} description={subtitle} />
 
-      {notice ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div> : null}
+      {notice ? <StatusMessage tone="success">{notice}</StatusMessage> : null}
 
       {view === "overview" ? (
         <>
@@ -304,6 +309,34 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
+          </Card>
+          <Card className="lg:col-span-2">
+            <CardHeader eyebrow="Opportunity applications" title="Default application methods" />
+            <p className="mb-4 text-sm leading-6 text-slate-600">
+              Organisers can configure eligible programme types. Hackathons, workshops, and webinars default to external registration; investor opportunities default to Idea Workspace.
+            </p>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {OPPORTUNITY_TYPE_OPTIONS.map((type) => (
+                <label key={type} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <span className="text-sm font-semibold text-slate-800">{type}</span>
+                  <select
+                    value={applicationDefaults[type]}
+                    onChange={(event) => {
+                      const method = event.target.value as ApplicationMethod;
+                      setApplicationDefaults((current) => ({ ...current, [type]: method }));
+                      saveConfiguredApplicationDefault(type, method);
+                      setNotice(`${type} default saved for opportunity creation on this device.`);
+                    }}
+                    className="mt-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                  >
+                    {Object.entries(APPLICATION_METHOD_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
+            <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+              A hackathon should move away from external registration only after an approved direct application partnership.
+            </p>
           </Card>
         </div>
       ) : null}

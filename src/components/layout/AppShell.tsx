@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   Bell,
@@ -17,6 +18,7 @@ import {
   LayoutDashboard,
   Lightbulb,
   LogOut,
+  Menu,
   MessagesSquare,
   Search,
   Settings2,
@@ -26,7 +28,8 @@ import {
   UserCheck,
   UserRound,
   UsersRound,
-  Wallet
+  Wallet,
+  X
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { VentureLogo } from "@/components/brand/VentureLogo";
@@ -79,6 +82,7 @@ const adminNav: NavItem[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/users", label: "Users", icon: UsersRound },
   { href: "/admin/validators", label: "Validators", icon: ShieldCheck },
+  { href: "/admin/opportunities", label: "Opportunities", icon: Compass },
   { href: "/admin/bookings", label: "Bookings", icon: ClipboardCheck },
   { href: "/admin/reports", label: "Reports", icon: FileChartColumn },
   { href: "/admin/payments", label: "Payments", icon: CreditCard },
@@ -101,6 +105,7 @@ function isActive(pathname: string, href: string) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const navigation = navigationFor(pathname);
   const currentItem = [...navigation.items]
     .sort((a, b) => b.href.length - a.href.length)
@@ -133,6 +138,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const PrimaryIcon = isInvestor ? FilePlus2 : isProvider ? Store : isValidator ? Inbox : isAdmin ? ShieldCheck : Lightbulb;
   const supabaseReady = isSupabaseConfigured();
 
+  useEffect(() => {
+    setMobileNavigationOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileNavigationOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileNavigationOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [mobileNavigationOpen]);
+
   async function handleLogout() {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
@@ -149,22 +172,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-dvh bg-slate-50 text-slate-950">
-      <aside className="scrollbar-thin fixed inset-y-0 left-0 z-40 hidden h-dvh w-72 flex-col overflow-y-auto border-r border-slate-200 bg-white px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5 lg:flex">
+      <aside className="scrollbar-thin fixed inset-y-0 left-0 z-40 hidden h-dvh w-64 flex-col overflow-y-auto border-r border-slate-200 bg-white px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5 lg:flex">
         <VentureLogo className="px-2" />
 
-        <div className="mt-7 rounded-xl border border-blue-100 bg-blue-50 p-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
-            <ShieldCheck size={16} />
-            {navigation.label} workspace
-          </div>
-          <p className="mt-2 text-xs leading-5 text-blue-800">
-            Role-scoped navigation keeps documents, reviews, services, and conversations in the correct workflow.
-          </p>
+        <div className="mt-7 flex items-center gap-2 border-y border-slate-100 px-3 py-3 text-sm font-semibold text-slate-700">
+          <ShieldCheck aria-hidden="true" size={16} className="text-primary" />
+          {navigation.label}
         </div>
 
-        <nav className="mt-6">
-          <p className="px-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{navigation.label}</p>
-          <div className="mt-2 space-y-1">
+        <nav className="mt-4" aria-label={`${navigation.label} navigation`}>
+          <div className="space-y-1">
             {navigation.items.map((item) => {
               const active = isActive(pathname, item.href);
               const Icon = item.icon;
@@ -173,36 +190,91 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition duration-200",
-                    active ? "bg-primary text-white shadow-panel" : "text-slate-600 hover:translate-x-0.5 hover:bg-slate-100 hover:text-slate-950"
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors duration-150",
+                    active ? "bg-primary text-white shadow-sm" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                   )}
                 >
-                  <Icon size={18} />
+                  <Icon aria-hidden="true" size={18} />
                   {item.label}
                 </Link>
               );
             })}
           </div>
         </nav>
-
-        <div className="mt-auto rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <Settings2 size={16} className="text-primary" />
-            Workflow rule
-          </div>
-          <p className="mt-2 text-xs leading-5 text-slate-500">
-            Conversations begin after reviewer interest. Free founders receive a feedback preview and upgrade prompt.
-          </p>
-        </div>
       </aside>
 
-      <div className="min-w-0 lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/92 shadow-[0_1px_0_rgba(15,23,42,0.02)] backdrop-blur-xl">
+      {mobileNavigationOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
+            className="absolute inset-0 bg-slate-950/35"
+            onClick={() => setMobileNavigationOpen(false)}
+          />
+          <aside
+            id="mobile-navigation"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${navigation.label} navigation`}
+            className="scrollbar-thin relative flex h-dvh w-[min(88vw,320px)] flex-col overflow-y-auto border-r border-slate-200 bg-white p-4 shadow-2xl"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <VentureLogo />
+              <button
+                type="button"
+                aria-label="Close navigation"
+                onClick={() => setMobileNavigationOpen(false)}
+                className="rounded-lg border border-slate-200 p-2.5 text-slate-600 transition-colors hover:bg-slate-100"
+              >
+                <X aria-hidden="true" size={18} />
+              </button>
+            </div>
+            <p className="mt-7 px-3 text-sm font-semibold text-slate-500">{navigation.label}</p>
+            <nav className="mt-2 space-y-1">
+              {navigation.items.map((item) => {
+                const active = isActive(pathname, item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileNavigationOpen(false)}
+                    className={cn(
+                      "flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors",
+                      active ? "bg-primary text-white" : "text-slate-700 hover:bg-slate-100"
+                    )}
+                  >
+                    <Icon aria-hidden="true" size={18} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <Link href={primaryHref} onClick={() => setMobileNavigationOpen(false)} className="mt-auto pt-6">
+              <Button className="w-full">
+                <PrimaryIcon aria-hidden="true" size={16} />
+                {primaryLabel}
+              </Button>
+            </Link>
+          </aside>
+        </div>
+      ) : null}
+
+      <div className="min-w-0 lg:pl-64">
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
           <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <div className="lg:hidden">
-                <VentureLogo compact />
-              </div>
+              <button
+                type="button"
+                aria-label="Open navigation"
+                aria-expanded={mobileNavigationOpen}
+                aria-controls="mobile-navigation"
+                onClick={() => setMobileNavigationOpen(true)}
+                className="rounded-lg border border-slate-200 p-2.5 text-slate-700 transition-colors hover:bg-slate-100 lg:hidden"
+              >
+                <Menu aria-hidden="true" size={18} />
+              </button>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-950">{currentItem.label}</p>
                 <p className="hidden truncate text-xs text-slate-500 sm:block">{navigation.label} workspace</p>
@@ -210,14 +282,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 href={discoveryHref}
                 aria-label={`Open ${navigation.label.toLowerCase()} discovery`}
-                className="ml-3 hidden w-full max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-slate-700 md:flex"
+                className="ml-3 hidden w-full max-w-md items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-slate-700 xl:flex"
               >
                 <Search size={17} className="shrink-0 text-slate-400" />
                 <span className="truncate text-sm">Find {isProvider ? "services" : isValidator ? "requests" : isAdmin ? "users" : "opportunities"}</span>
               </Link>
             </div>
             <div className="flex items-center gap-2">
-              <Link href={primaryHref} className="hidden sm:block">
+              <Link href={primaryHref} className="hidden lg:block">
                 <Button variant="secondary" size="sm">
                   <PrimaryIcon size={16} />
                   {primaryLabel}
@@ -228,7 +300,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Link
                     href={notificationsHref}
                     aria-label="Notifications"
-                    className="relative rounded-xl border border-slate-200 bg-white p-2.5 text-slate-600 transition hover:border-blue-200 hover:bg-blue-50"
+                    className="relative rounded-lg border border-slate-200 bg-white p-2.5 text-slate-600 transition-colors hover:border-blue-200 hover:bg-blue-50"
                   >
                     <Bell size={18} />
                     <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
@@ -236,7 +308,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Link
                     href={messagesHref}
                     aria-label="Messages"
-                    className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-600 transition hover:border-blue-200 hover:bg-blue-50"
+                    className="rounded-lg border border-slate-200 bg-white p-2.5 text-slate-600 transition-colors hover:border-blue-200 hover:bg-blue-50"
                   >
                     <Inbox size={18} />
                   </Link>
@@ -246,7 +318,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50"
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50"
                 >
                   <LogOut size={16} />
                   <span className="hidden sm:inline">Log out</span>
@@ -254,7 +326,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               ) : (
                 <Link
                   href="/auth"
-                  className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 sm:flex"
+                  className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50 lg:flex"
                 >
                   <LayoutDashboard size={16} />
                   Switch role
@@ -262,25 +334,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               )}
             </div>
           </div>
-          <nav aria-label={`${navigation.label} navigation`} className="scrollbar-none flex gap-2 overflow-x-auto border-t border-slate-200 px-4 py-2 lg:hidden">
-            {navigation.items.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition",
-                    active ? "bg-primary text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-primary"
-                  )}
-                >
-                  <Icon size={14} />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
         </header>
 
         <main className="min-w-0 px-4 py-5 pb-[max(5rem,calc(env(safe-area-inset-bottom)+2.5rem))] sm:px-6 sm:py-6 lg:px-8 lg:pb-12">

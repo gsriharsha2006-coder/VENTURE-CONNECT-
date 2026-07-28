@@ -65,7 +65,7 @@ The AI architecture is intentionally server-side:
 
 - Frontend collects startup context, deck notes, traction, market, and problem/solution details.
 - `POST /api/reports/generate` calls the report provider abstraction.
-- The provider uses Gemini, Sarvam, or OpenAI when its API key is present and a deterministic fallback otherwise.
+- VC Readiness Reports use the server-only OpenAI provider when `OPENAI_API_KEY` is configured. Development uses an explicitly labelled deterministic mock only when that key is absent; configured provider failures never silently fall back.
 - Supabase Edge Function `generate-ai-report` mirrors the same production path for deployment.
 - Generated JSON should be persisted in `ai_reports` for auditability, versioning, and investor memo reuse.
 

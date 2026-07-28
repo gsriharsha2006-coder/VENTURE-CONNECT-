@@ -1,24 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   ArrowRight,
+  Bookmark,
+  CalendarClock,
   CheckCircle2,
   CalendarCheck2,
   FileChartColumn,
   Lightbulb,
   LockKeyhole,
   MessagesSquare,
-  Send,
-  ShieldCheck
+  Send
 } from "lucide-react";
+import { ApplicationMethodBadge } from "@/components/opportunities/ApplicationMethodBadge";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { applications, dashboardStats, ideaWorkspaces, messageThreads, opportunities, reportSuite } from "@/lib/data";
+import { applications, dashboardStats, externalRegistrations, ideaWorkspaces, messageThreads, opportunities, reportSuite } from "@/lib/data";
 import { getBadgesForWorkspace, validationBookings } from "@/lib/data/validations";
 import { completionPercent, missingRequiredSections } from "@/lib/templates";
 
@@ -30,22 +32,20 @@ export default function DashboardPage() {
   const interestedThread = messageThreads[0];
   const latestBadges = getBadgesForWorkspace(latest.id);
   const upcomingValidation = validationBookings.find((booking) => booking.status !== "Validation Completed") ?? validationBookings[0];
+  const hackathons = opportunities.filter((opportunity) => opportunity.opportunity_type === "Hackathon");
+  const savedHackathons = hackathons.filter((opportunity) => opportunity.saved);
+  const externallyAppliedHackathons = externalRegistrations.filter((registration) =>
+    hackathons.some((opportunity) => opportunity.id === registration.opportunity_id)
+  );
 
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col justify-between gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center"
-      >
-        <div>
-          <Badge>Founder Home</Badge>
-          <h1 className="mt-3 text-3xl font-semibold tracking-normal text-slate-950">Build, validate, apply, then unlock conversations.</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-            Venture Connect keeps the founder workflow focused: Idea Workspace, VC Readiness Report, structured applications, and interest-gated messaging.
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-2 sm:flex-nowrap">
+      <PageHeader
+        eyebrow="Founder dashboard"
+        title="Build, validate, apply, then unlock conversations."
+        description="Use structured documents for internal applications and discover organiser-managed hackathons through their official registration flows."
+        actions={
+          <>
           <Link href="/dashboard/idea-workspace" className="flex">
             <Button>
               <Lightbulb size={16} />
@@ -55,17 +55,12 @@ export default function DashboardPage() {
           <Link href="/dashboard/opportunities" className="flex">
             <Button variant="secondary">
               <Send size={16} />
-              Apply
+              Explore opportunities
             </Button>
           </Link>
-          <Link href="/dashboard/validation-hub" className="flex">
-            <Button variant="secondary">
-              <ShieldCheck size={16} />
-              Validate
-            </Button>
-          </Link>
-        </div>
-      </motion.div>
+          </>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {dashboardStats.map((stat) => (
@@ -94,7 +89,7 @@ export default function DashboardPage() {
                 </div>
                 <ProgressBar value={completion} className="mt-3" />
                 <p className="mt-3 text-xs leading-5 text-slate-500">
-                  {canApply ? "This document can be used for investor, incubator, hackathon, and challenge applications." : "Complete required sections before applying."}
+                  {canApply ? "This document can be used for internal investor, incubator, accelerator, and partnered challenge applications." : "Complete required sections before internal applications."}
                 </p>
               </div>
             </div>
@@ -115,6 +110,7 @@ export default function DashboardPage() {
                       <div>
                         <p className="text-sm font-semibold">{opportunity.title}</p>
                         <p className="mt-1 text-xs text-slate-500">{opportunity.organizer_name} / {opportunity.deadline}</p>
+                        <div className="mt-2"><ApplicationMethodBadge method={opportunity.application_method} /></div>
                       </div>
                       {opportunity.verified ? <Badge tone="green">Verified</Badge> : <Badge tone="amber">Review</Badge>}
                     </div>
@@ -142,18 +138,57 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          <Card>
-            <CardHeader eyebrow="Applications" title="Status trail" action={<Link href="/dashboard/opportunities" className="text-sm font-semibold text-primary">Open applications</Link>} />
-            <div className="grid gap-3 lg:grid-cols-3">
-              {applications.map((application) => (
-                <div key={application.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <Badge tone={application.status === "Interested" ? "green" : application.status === "Rejected" ? "red" : "blue"}>{application.status}</Badge>
-                  <p className="mt-3 text-sm font-semibold">{application.opportunity}</p>
-                  <p className="mt-1 text-xs text-slate-500">{application.submittedAt}</p>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader eyebrow="Hackathons" title="Upcoming deadlines" action={<Link href="/dashboard/opportunities" className="text-sm font-semibold text-primary">Discover</Link>} />
+              <div className="space-y-3">
+                {hackathons.map((opportunity) => (
+                  <div key={opportunity.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm font-semibold">{opportunity.title}</p>
+                    <p className="mt-2 flex items-center gap-2 text-xs text-slate-500"><CalendarClock size={14} className="text-primary" />Registration deadline {opportunity.deadline}</p>
+                    <p className="mt-2 text-xs font-semibold text-blue-700">External Registration</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            <Card>
+              <CardHeader eyebrow="Saved hackathons" title="Return to registration" />
+              {savedHackathons.length ? (
+                <div className="space-y-3">
+                  {savedHackathons.map((opportunity) => (
+                    <div key={opportunity.id} className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <Bookmark size={16} className="mt-0.5 text-primary" />
+                      <div><p className="text-sm font-semibold">{opportunity.title}</p><p className="mt-1 text-xs text-slate-500">{opportunity.organizer_name}</p></div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </Card>
+              ) : <p className="text-sm text-slate-600">No saved hackathons yet.</p>}
+            </Card>
+            <Card>
+              <CardHeader eyebrow="Tracked by You" title="Externally applied hackathons" action={<Link href="/applications" className="text-sm font-semibold text-primary">Open tracker</Link>} />
+              <div className="space-y-3">
+                {externallyAppliedHackathons.map((registration) => (
+                  <div key={registration.id} className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                    <Badge tone="slate">{registration.status}</Badge>
+                    <p className="mt-3 text-sm font-semibold">{registration.opportunity_title}</p>
+                    <p className="mt-1 text-xs text-slate-500">Founder-tracked / not organiser verified</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            <Card>
+              <CardHeader eyebrow="Venture Connect" title="Investor and incubator applications" action={<Link href="/applications" className="text-sm font-semibold text-primary">Open applications</Link>} />
+              <div className="space-y-3">
+                {applications.map((application) => (
+                  <div key={application.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <Badge tone={application.status === "Interested" ? "green" : application.status === "Rejected" ? "red" : "blue"}>{application.status}</Badge>
+                    <p className="mt-3 text-sm font-semibold">{application.opportunity}</p>
+                    <p className="mt-1 text-xs text-slate-500">{application.submittedAt}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
         </div>
 
         <aside className="space-y-4">
@@ -205,7 +240,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader eyebrow="Trust" title="Application readiness rules" />
             <div className="space-y-3 text-sm text-slate-600">
-              {["Investor/incubator/hackathon applications require a complete Idea Workspace document.", "Human-reviewed badges require a completed validator report and approved document version.", "Free founders see interest but not full chat or meeting links."].map((item) => (
+              {["External hackathon registration never requires an Idea Workspace document.", "Internal investor and programme applications require an eligible Idea Workspace document.", "Human-reviewed badges require a completed validator report and approved document version.", "Free founders see interest but not full chat or meeting links."].map((item) => (
                 <p key={item} className="flex gap-2">
                   <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-600" />
                   {item}

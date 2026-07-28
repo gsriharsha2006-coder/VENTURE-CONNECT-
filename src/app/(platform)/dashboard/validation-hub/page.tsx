@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { CalendarCheck2, ChevronDown, ClipboardCheck, Search, ShieldCheck, SlidersHorizontal } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
+import { SkeletonCard, StatusMessage } from "@/components/ui/FeedbackState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { ValidationEmptyState } from "@/components/validation/ValidationEmptyState";
 import { ValidationStatusBadge } from "@/components/validation/ValidationStatusBadge";
@@ -61,40 +61,27 @@ export default function ValidationHubPage() {
 
   return (
     <div className="space-y-6">
-      <motion.section
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-      >
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
-          <div>
-            <Badge>
-              <ShieldCheck size={13} />
-              Validation Hub
-            </Badge>
-            <h1 className="mt-3 text-3xl font-semibold tracking-normal text-slate-950">
-              Validate Your Startup Idea with Real Experts
-            </h1>
-            <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-600">
-              Get structured feedback from verified R&D faculty, incubation-cell members, founders and industry professionals before approaching incubators or investors.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+      <PageHeader
+        eyebrow="Validation Hub"
+        title="Validate your startup idea with experienced reviewers."
+        description="Get structured feedback from verified faculty, incubation teams, founders, and industry professionals before approaching programmes or investors."
+        actions={
+          <>
             <a href="#validators" className="flex">
               <Button>
                 <Search size={16} />
-                Find a Validator
+                Find a validator
               </Button>
             </a>
             <a href="#my-validations" className="flex">
               <Button variant="secondary">
                 <ClipboardCheck size={16} />
-                View My Validations
+                My validations
               </Button>
             </a>
-          </div>
-        </div>
-      </motion.section>
+          </>
+        }
+      />
 
       <div className="grid gap-3 md:grid-cols-4">
         {validationTrustMetrics.map((metric) => (
@@ -112,7 +99,12 @@ export default function ValidationHubPage() {
             <CardHeader eyebrow="Search and filters" title="Find a validator who matches your document" className="mb-1" />
             <p className="text-sm text-slate-500">Use broad filters first. Advanced filters stay collapsed on small screens to keep the page readable.</p>
           </div>
-          <Button variant="secondary" onClick={() => setShowAdvanced((value) => !value)}>
+          <Button
+            variant="secondary"
+            aria-expanded={showAdvanced}
+            aria-controls="advanced-validator-filters"
+            onClick={() => setShowAdvanced((value) => !value)}
+          >
             <SlidersHorizontal size={16} />
             Filters
             <ChevronDown size={16} className={showAdvanced ? "rotate-180 transition" : "transition"} />
@@ -120,7 +112,7 @@ export default function ValidationHubPage() {
         </div>
 
         <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_220px_220px]">
-          <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-blue-100">
+          <label className="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-blue-100">
             <Search size={17} className="text-slate-400" />
             <input
               value={query}
@@ -129,29 +121,29 @@ export default function ValidationHubPage() {
               placeholder="Search by name, institution, or expertise..."
             />
           </label>
-          <select value={domain} onChange={(event) => setDomain(event.target.value as "All" | ValidationDomain)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-600">
+          <select aria-label="Validation domain" value={domain} onChange={(event) => setDomain(event.target.value as "All" | ValidationDomain)} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
             <option>All</option>
             {validationDomains.map((item) => <option key={item}>{item}</option>)}
           </select>
-          <select value={serviceType} onChange={(event) => setServiceType(event.target.value as "All" | ValidationServiceType)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-600">
+          <select aria-label="Validation service type" value={serviceType} onChange={(event) => setServiceType(event.target.value as "All" | ValidationServiceType)} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
             {serviceOptions.map((item) => <option key={item}>{item}</option>)}
           </select>
         </div>
 
         {showAdvanced ? (
-          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <select value={priceRange} onChange={(event) => setPriceRange(event.target.value as (typeof priceOptions)[number])} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-600">
+          <div id="advanced-validator-filters" className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <select aria-label="Validation price range" value={priceRange} onChange={(event) => setPriceRange(event.target.value as (typeof priceOptions)[number])} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
               {priceOptions.map((item) => <option key={item}>{item}</option>)}
             </select>
-            <select value={language} onChange={(event) => setLanguage(event.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-600">
+            <select aria-label="Validator language" value={language} onChange={(event) => setLanguage(event.target.value)} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
               {languageOptions.map((item) => <option key={item}>{item}</option>)}
             </select>
-            <select value={minRating} onChange={(event) => setMinRating(Number(event.target.value))} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-600">
+            <select aria-label="Minimum validator rating" value={minRating} onChange={(event) => setMinRating(Number(event.target.value))} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
               <option value={0}>Any rating</option>
               <option value={4.5}>4.5+ rating</option>
               <option value={4.8}>4.8+ rating</option>
             </select>
-            <select value={availability} onChange={(event) => setAvailability(event.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-600">
+            <select aria-label="Validator availability" value={availability} onChange={(event) => setAvailability(event.target.value)} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
               {availabilityOptions.map((item) => <option key={item}>{item}</option>)}
             </select>
           </div>
@@ -159,14 +151,12 @@ export default function ValidationHubPage() {
       </Card>
 
       {error ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800">{error}</div>
+        <StatusMessage tone="error">{error}</StatusMessage>
       ) : null}
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          {[1, 2].map((item) => (
-            <div key={item} className="h-72 animate-pulse rounded-2xl border border-slate-200 bg-white" />
-          ))}
+        <div aria-label="Loading validators" className="grid gap-4 md:grid-cols-2">
+          {[1, 2].map((item) => <SkeletonCard key={item} className="h-72" />)}
         </div>
       ) : filtered.length ? (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">

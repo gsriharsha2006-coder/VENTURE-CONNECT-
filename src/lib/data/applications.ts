@@ -1,6 +1,6 @@
 import { applications as mockApplications } from "@/lib/data";
 import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
-import type { Application } from "@/lib/types";
+import type { Application, ApplicationMethod } from "@/lib/types";
 
 export async function getApplications(): Promise<Application[]> {
   const supabase = getBrowserSupabase();
@@ -38,9 +38,13 @@ export async function getApplications(): Promise<Application[]> {
 
 export async function applyToOpportunity(input: {
   opportunityId: string;
-  ideaWorkspaceId?: string | null;
-  isEventApplication?: boolean;
+  ideaWorkspaceId: string;
+  applicationMethod: ApplicationMethod;
 }) {
+  if (input.applicationMethod !== "idea_workspace_application") {
+    throw new Error("This opportunity is managed on the organiser website and cannot create an internal application.");
+  }
+
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("create application");
   if (!supabase || !userId) {
@@ -56,7 +60,7 @@ export async function applyToOpportunity(input: {
     .insert({
       founder_id: userId,
       opportunity_id: input.opportunityId,
-      idea_workspace_id: input.isEventApplication ? null : input.ideaWorkspaceId ?? null,
+      idea_workspace_id: input.ideaWorkspaceId,
       status: "submitted"
     })
     .select()

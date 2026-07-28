@@ -13,7 +13,7 @@ export function ValidatorCard({ validator }: { validator: ValidatorProfile }) {
   const startingPrice = Math.min(...validator.serviceTypes.map((type) => validationServices[type].founderPrice));
 
   return (
-    <Card className="flex h-full flex-col p-5 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-panel">
+    <Card className="flex h-full flex-col p-5 transition-colors hover:border-blue-200">
       <div className="flex items-start gap-4">
         <ValidatorAvatar name={validator.name} verified={validator.verified} />
         <div className="min-w-0 flex-1">

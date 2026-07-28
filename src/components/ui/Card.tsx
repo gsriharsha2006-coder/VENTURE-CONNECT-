@@ -6,7 +6,7 @@ export function Card({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("premium-card rounded-2xl p-5", className)} {...props}>
+    <div className={cn("premium-card rounded-lg p-5", className)} {...props}>
       {children}
     </div>
   );
@@ -27,7 +27,7 @@ export function CardHeader({
     <div className={cn("mb-4 flex items-start justify-between gap-4", className)}>
       <div>
         {eyebrow ? (
-          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+          <p className="mb-1 text-sm font-medium text-primary">
             {eyebrow}
           </p>
         ) : null}

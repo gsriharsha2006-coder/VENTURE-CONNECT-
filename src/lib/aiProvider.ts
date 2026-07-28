@@ -1,9 +1,10 @@
 /**
  * Public AI provider abstraction for VC Readiness Reports.
  *
- * Providers fall back to deterministic local report generation when their API
- * key is absent or a remote request fails.
+ * Development uses a deterministic mock only when OPENAI_API_KEY is absent.
+ * A configured OpenAI failure never silently falls back to mock output.
  */
-export { getAIProvider } from "@/lib/ai/provider";
+export { getAIProvider, isOpenAIConfigured, isGeminiConfigured } from "@/lib/ai/provider";
 export type { AIProviderName } from "@/lib/ai/provider";
-export type { AIProvider, ReportGenerationInput } from "@/lib/ai/providers/types";
+export { AIProviderError } from "@/lib/ai/providers/types";
+export type { AIProvider, AIProviderErrorCode, ReportGenerationInput } from "@/lib/ai/providers/types";

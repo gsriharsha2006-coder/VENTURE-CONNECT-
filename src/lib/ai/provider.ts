@@ -1,11 +1,22 @@
-import { GeminiProvider, OpenAIProvider, SarvamProvider } from "./providers";
-import type { AIProvider } from "./providers/types";
+import "server-only";
 
-export type AIProviderName = "gemini" | "sarvam" | "openai";
+import { MockProvider, OpenAIReportProvider } from "./providers";
+import { AIProviderError, type AIProvider } from "./providers/types";
 
-export function getAIProvider(name?: AIProviderName): AIProvider {
-  const provider = name ?? (process.env.AI_PROVIDER as AIProviderName) ?? "gemini";
-  if (provider === "sarvam") return new SarvamProvider();
-  if (provider === "openai") return new OpenAIProvider();
-  return new GeminiProvider();
+export type AIProviderName = "openai" | "mock";
+
+export function isOpenAIConfigured() {
+  return Boolean(process.env.OPENAI_API_KEY?.trim());
+}
+
+// Retained temporarily so the previous Gemini implementation can be audited or
+// removed after real OpenAI verification. Gemini is no longer an active fallback.
+export function isGeminiConfigured() {
+  return Boolean(process.env.GEMINI_API_KEY?.trim());
+}
+
+export function getAIProvider(): AIProvider {
+  if (isOpenAIConfigured()) return new OpenAIReportProvider();
+  if (process.env.NODE_ENV === "development") return new MockProvider();
+  throw new AIProviderError("NOT_CONFIGURED", "OpenAI is not configured on the server.");
 }

@@ -1,11 +1,21 @@
+import { isStoredVcReportContent } from "@/lib/ai/reportSchema";
 import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
-import type { ReportType, SubscriptionPlan, VcReportContent } from "@/lib/types";
+import type { ReportType, VcReportContent } from "@/lib/types";
+
+export type ReportHistoryItem = {
+  id: string;
+  workspaceId?: string;
+  workspaceName: string;
+  report: VcReportContent;
+};
 
 export function generateMockReport(reportType: ReportType = "Basic SWOT Report"): VcReportContent {
   return {
     tier: reportType === "Basic SWOT Report" ? "free" : "premium",
     reportType,
     planRequired: reportType === "Basic SWOT Report" ? "Free" : "Founder Pro",
+    startupName: "Development workspace",
+    summary: "Development-only VC Readiness Report fallback.",
     overallScore: 82,
     finalRecommendation: "Investor Conversation Ready",
     sections: [
@@ -20,28 +30,27 @@ export function generateMockReport(reportType: ReportType = "Basic SWOT Report")
   };
 }
 
-export async function saveGeneratedReport(input: {
-  ideaWorkspaceId?: string | null;
-  report: VcReportContent;
-  planRequired?: SubscriptionPlan;
-}) {
+export async function getGeneratedReports(): Promise<ReportHistoryItem[]> {
   const supabase = getBrowserSupabase();
-  const userId = await getCurrentUserId("save VC Readiness Report");
-  if (!supabase || !userId) return { mode: "mock-fallback" as const, report: input.report };
+  const userId = await getCurrentUserId("load VC Readiness Report history");
+  if (!supabase || !userId) return [];
 
   const { data, error } = await supabase
     .from("vc_reports")
-    .insert({
-      founder_id: userId,
-      idea_workspace_id: input.ideaWorkspaceId ?? null,
-      report_type: input.report.reportType,
-      plan_required: input.planRequired ?? input.report.planRequired,
-      report_content: input.report,
-      score: input.report.overallScore
-    })
-    .select()
-    .single();
+    .select("id, idea_workspace_id, report_content, created_at")
+    .eq("founder_id", userId)
+    .order("created_at", { ascending: false });
 
-  if (error || !data) throw supabaseDataError("save VC Readiness Report", error ?? "No row returned.");
-  return data;
+  if (error) throw supabaseDataError("load VC Readiness Report history", error);
+  return (data ?? []).map((row) => {
+    if (!isStoredVcReportContent(row.report_content)) {
+      throw supabaseDataError("load VC Readiness Report history", `Report ${row.id} contains invalid structured data.`);
+    }
+    return {
+      id: row.id,
+      workspaceId: row.idea_workspace_id ?? undefined,
+      workspaceName: row.report_content.startupName ?? "Idea Workspace",
+      report: row.report_content
+    };
+  });
 }

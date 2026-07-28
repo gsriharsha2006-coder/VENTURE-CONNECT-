@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { CalendarDays, ClipboardCheck, FileText, IndianRupee, MessageSquare, RefreshCw, ShieldCheck, Star } from "lucide-react";
+import { CalendarDays, ClipboardCheck, FileText, IndianRupee, MessageSquare, RefreshCw, Star } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ValidationStatusBadge } from "@/components/validation/ValidationStatusBadge";
 import { validationBookings, validationReports, validators } from "@/lib/data/validations";
 import { validationServices } from "@/lib/validation/config";
@@ -20,16 +20,16 @@ export default function ValidatorDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <Badge>
-          <ShieldCheck size={13} />
-          Validator Dashboard
-        </Badge>
-        <h1 className="mt-3 text-3xl font-semibold tracking-normal text-slate-950">Manage human validation requests without exposing documents too early.</h1>
-        <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">
-          Review new requests, accept or decline, complete structured reports, handle revisions, and track payout eligibility after the dispute window.
-        </p>
-      </motion.div>
+      <PageHeader
+        eyebrow="Validator dashboard"
+        title="Manage validation requests without exposing documents too early."
+        description="Review incoming work, complete structured reports, handle revisions, and track payout eligibility after the dispute window."
+        actions={
+          <Link href="/validator/requests">
+            <Button>Review requests</Button>
+          </Link>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="New requests" value="1" delta="Acceptance required" />

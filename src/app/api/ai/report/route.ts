@@ -1,19 +1,4 @@
-import { NextResponse } from "next/server";
-import { getAIProvider } from "@/lib/ai/provider";
-
-export async function POST(request: Request) {
-  const body = await request.json();
-  const provider = getAIProvider();
-
-  const report = await provider.generateReport({
-    workspaceName: body.startupName ?? body.workspaceName ?? "Startup",
-    template: body.template ?? "startup",
-    sections: body.sections ?? {},
-    reportType: body.reportType ?? (body.tier === "premium" ? "Premium SWOT Analysis" : "Basic SWOT Report")
-  });
-
-  return NextResponse.json({
-    data: report,
-    meta: { generatedBy: provider.name, reportType: "vc_readiness" }
-  });
-}
+// Deprecated alias using the canonical request contract. All report security
+// and generation logic lives in /api/reports/generate.
+export const runtime = "nodejs";
+export { POST } from "@/app/api/reports/generate/route";

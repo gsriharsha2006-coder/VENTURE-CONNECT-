@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { opportunities } from "@/lib/data";
+import {
+  applicationMethodNeedsExternalUrl,
+  defaultApplicationMethodForType,
+  validateExternalRegistrationUrl
+} from "@/lib/opportunities/application-methods";
+import type { ApplicationMethod, OpportunityType } from "@/lib/types";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -25,6 +31,28 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json();
+  const opportunityType = (body.opportunity_type ?? body.type ?? "Other") as OpportunityType;
+  const applicationMethod = (body.application_method ?? defaultApplicationMethodForType(opportunityType)) as ApplicationMethod;
+
+  if (opportunityType === "Hackathon" && applicationMethod !== "external_registration" && !body.direct_application_partner) {
+    return NextResponse.json(
+      { error: "HACKATHON_METHOD_REQUIRED", message: "Hackathons require external organiser registration unless a direct application partnership is confirmed." },
+      { status: 400 }
+    );
+  }
+
+  if (applicationMethodNeedsExternalUrl(applicationMethod)) {
+    const destination = validateExternalRegistrationUrl(body.external_link);
+    if (!destination.valid) {
+      return NextResponse.json({ error: "INVALID_EXTERNAL_URL", message: destination.error }, { status: 400 });
+    }
+    if (!String(body.organizer_name ?? "").trim() || !String(body.deadline ?? "").trim() || !String(body.source_verification ?? "").trim()) {
+      return NextResponse.json(
+        { error: "MISSING_EXTERNAL_REGISTRATION_FIELDS", message: "Organiser name, registration deadline, and source verification are required." },
+        { status: 400 }
+      );
+    }
+  }
 
   return NextResponse.json(
     {
@@ -32,7 +60,9 @@ export async function POST(request: Request) {
         id: `opp-${Date.now()}`,
         verified: false,
         applicants: 0,
-        ...body
+        ...body,
+        opportunity_type: opportunityType,
+        application_method: applicationMethod
       },
       billing: {
         amountInr: 100,

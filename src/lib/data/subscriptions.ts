@@ -23,14 +23,20 @@ export async function getSubscriptionUsage(): Promise<{
   if (subscriptionError) throw supabaseDataError("load active subscription", subscriptionError);
   if (!profile) throw supabaseDataError("load subscription profile", "Profile row is missing.");
 
-  const plan = normalizePlan(subscription?.plan ?? profile?.plan);
+  // Until a verified payment webhook becomes the source of truth, the protected
+  // profile plan is authoritative. Browser-editable state is never trusted.
+  const plan = normalizePlan(profile?.plan ?? subscription?.plan);
+  const usageMonth = typeof subscription?.report_usage_month === "string" ? subscription.report_usage_month.slice(0, 7) : "";
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const reportsUsed = usageMonth && usageMonth !== currentMonth ? 0 : subscription?.report_count_used ?? 0;
   const entitlements = computeEntitlements({
     ...mockCurrentProfile,
     id: profile?.id ?? mockCurrentProfile.id,
     user_id: userId,
     plan,
     free_report_used: subscription?.free_swot_used ?? false,
-    reports_used_this_month: subscription?.report_count_used ?? 0,
+    reports_used_this_month: reportsUsed,
+    reports_month_reset: usageMonth ? `${usageMonth}-01T00:00:00.000Z` : undefined,
     opportunity_submissions_used: subscription?.opportunity_submissions_used ?? 0
   });
 
@@ -46,7 +52,9 @@ export async function getSubscriptionUsage(): Promise<{
           expires_at: subscription.expires_at ?? undefined,
           report_count_used: subscription.report_count_used,
           opportunity_submissions_used: subscription.opportunity_submissions_used,
-          free_swot_used: subscription.free_swot_used
+          free_swot_used: subscription.free_swot_used,
+          report_usage_month: subscription.report_usage_month,
+          updated_at: subscription.updated_at
         }
       : null,
     entitlements

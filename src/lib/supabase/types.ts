@@ -89,8 +89,22 @@ export type Database = {
           mode: Nullable<string>;
           verified: boolean;
           trending: boolean;
+          application_method: string;
           external_link: Nullable<string>;
           contact_email: Nullable<string>;
+          organizer_logo: Nullable<string>;
+          official_website: Nullable<string>;
+          event_start_date: Nullable<string>;
+          event_end_date: Nullable<string>;
+          venue: Nullable<string>;
+          team_size: Nullable<string>;
+          tracks: string[];
+          registration_fee: Nullable<string>;
+          required_skills: string[];
+          official_rules_url: Nullable<string>;
+          source_verification: Nullable<string>;
+          application_instructions: Nullable<string>;
+          direct_application_partner: boolean;
           created_at: string;
         };
         Insert: {
@@ -110,8 +124,22 @@ export type Database = {
           mode?: Nullable<string>;
           verified?: boolean;
           trending?: boolean;
+          application_method?: string;
           external_link?: Nullable<string>;
           contact_email?: Nullable<string>;
+          organizer_logo?: Nullable<string>;
+          official_website?: Nullable<string>;
+          event_start_date?: Nullable<string>;
+          event_end_date?: Nullable<string>;
+          venue?: Nullable<string>;
+          team_size?: Nullable<string>;
+          tracks?: string[];
+          registration_fee?: Nullable<string>;
+          required_skills?: string[];
+          official_rules_url?: Nullable<string>;
+          source_verification?: Nullable<string>;
+          application_instructions?: Nullable<string>;
+          direct_application_partner?: boolean;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["opportunities"]["Insert"]>;
@@ -137,15 +165,71 @@ export type Database = {
         };
         Update: Partial<Database["public"]["Tables"]["applications"]["Insert"]>;
       };
+      external_registrations: {
+        Row: {
+          id: string;
+          founder_id: string;
+          opportunity_id: string;
+          status: string;
+          external_application_id: Nullable<string>;
+          team_name: Nullable<string>;
+          submission_date: Nullable<string>;
+          notes: Nullable<string>;
+          confirmation_file_url: Nullable<string>;
+          organizer_verified: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          founder_id: string;
+          opportunity_id: string;
+          status?: string;
+          external_application_id?: Nullable<string>;
+          team_name?: Nullable<string>;
+          submission_date?: Nullable<string>;
+          notes?: Nullable<string>;
+          confirmation_file_url?: Nullable<string>;
+          organizer_verified?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["external_registrations"]["Insert"]>;
+      };
+      opportunity_analytics: {
+        Row: {
+          id: string;
+          opportunity_id: string;
+          user_id: Nullable<string>;
+          event_type: string;
+          referral_source: Nullable<string>;
+          occurred_at: string;
+        };
+        Insert: {
+          id?: string;
+          opportunity_id: string;
+          user_id?: Nullable<string>;
+          event_type: string;
+          referral_source?: Nullable<string>;
+          occurred_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["opportunity_analytics"]["Insert"]>;
+      };
       vc_reports: {
         Row: {
           id: string;
           founder_id: Nullable<string>;
           idea_workspace_id: Nullable<string>;
           report_type: Nullable<string>;
+          plan: Nullable<string>;
           plan_required: Nullable<string>;
+          provider: string;
+          model: Nullable<string>;
           report_content: Json;
+          structured_content: Json;
           score: Nullable<number>;
+          readiness_score: Nullable<number>;
+          generation_request_id: Nullable<string>;
           created_at: string;
         };
         Insert: {
@@ -153,12 +237,45 @@ export type Database = {
           founder_id?: Nullable<string>;
           idea_workspace_id?: Nullable<string>;
           report_type?: Nullable<string>;
+          plan?: Nullable<string>;
           plan_required?: Nullable<string>;
+          provider?: string;
+          model?: Nullable<string>;
           report_content?: Json;
+          structured_content?: Json;
           score?: Nullable<number>;
+          readiness_score?: Nullable<number>;
+          generation_request_id?: Nullable<string>;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["vc_reports"]["Insert"]>;
+      };
+      vc_report_generation_requests: {
+        Row: {
+          id: string;
+          request_id: string;
+          founder_id: string;
+          idea_workspace_id: string;
+          report_type: string;
+          status: "pending" | "completed" | "failed";
+          report_id: Nullable<string>;
+          error_code: Nullable<string>;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          request_id: string;
+          founder_id: string;
+          idea_workspace_id: string;
+          report_type: string;
+          status?: "pending" | "completed" | "failed";
+          report_id?: Nullable<string>;
+          error_code?: Nullable<string>;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["vc_report_generation_requests"]["Insert"]>;
       };
       messages: {
         Row: {
@@ -312,6 +429,8 @@ export type Database = {
           report_count_used: number;
           opportunity_submissions_used: number;
           free_swot_used: boolean;
+          report_usage_month: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -323,6 +442,8 @@ export type Database = {
           report_count_used?: number;
           opportunity_submissions_used?: number;
           free_swot_used?: boolean;
+          report_usage_month?: string;
+          updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["subscriptions"]["Insert"]>;
       };
@@ -336,6 +457,26 @@ export type Database = {
       current_profile_role: {
         Args: Record<string, never>;
         Returns: string;
+      };
+      begin_vc_report_generation: {
+        Args: { p_request_id: string; p_workspace_id: string; p_report_type: string };
+        Returns: Json;
+      };
+      record_vc_report: {
+        Args: {
+          p_request_id: string;
+          p_workspace_id: string;
+          p_report_type: string;
+          p_provider: string;
+          p_model: string;
+          p_report_content: Json;
+          p_score: number;
+        };
+        Returns: Database["public"]["Tables"]["vc_reports"]["Row"];
+      };
+      fail_vc_report_generation: {
+        Args: { p_request_id: string; p_error_code?: string };
+        Returns: boolean;
       };
     };
     Enums: Record<string, never>;

@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Download, FileText, PlayCircle, ShieldCheck, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -15,11 +14,7 @@ const workspace = ideaWorkspaces[0];
 export default function ProfilePage() {
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
-      >
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
           <div className="flex items-start gap-4">
             <span className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary text-xl font-bold text-white shadow-panel">{startup.logo}</span>
@@ -42,7 +37,7 @@ export default function ProfilePage() {
             Export application packet
           </Button>
         </div>
-      </motion.div>
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
         <div className="space-y-4">

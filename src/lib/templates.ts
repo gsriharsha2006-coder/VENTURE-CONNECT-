@@ -62,19 +62,23 @@ export const WORKSPACE_TEMPLATES: WorkspaceTemplateDef[] = [
   },
   {
     id: "hackathon",
-    label: "Hackathon Template",
-    description: "Submission structure for hackathons, buildathons, demo days, and challenge prizes.",
+    label: "Hackathon Project",
+    description: "Optional planning workspace for the solution, demo, team, and pitch after official organiser registration.",
     icon: "HX",
     analysisFocus: ["Demo quality", "Technical execution", "Impact", "Team", "Future startup potential"],
     sections: [
       required("project_name", "Project Name", "Name of the hackathon project."),
-      required("problem", "Problem", "The problem within the challenge track."),
-      required("solution", "Solution", "What you built and how it solves the problem."),
-      required("tech_used", "Tech Used", "Languages, frameworks, APIs, models, and infrastructure."),
-      required("demo", "Demo", "Demo link, repo, screenshots, or walkthrough notes."),
-      required("impact", "Impact", "Expected user, community, business, or operational impact."),
-      required("team_members", "Team Members", "Team names, roles, and ownership."),
-      required("future_plans", "Future Plans", "How the project can continue after the event.")
+      required("problem", "Problem Statement", "The problem within the selected challenge track."),
+      required("solution", "Proposed Solution", "What the team plans to build and how it solves the problem."),
+      required("technical_architecture", "Technical Architecture", "Components, data flow, APIs, models, devices, and infrastructure."),
+      required("feature_list", "Feature List", "Core experience, supporting features, and scope for the event."),
+      required("team_members", "Team Roles", "Team names, responsibilities, and ownership."),
+      required("tech_used", "Technology Stack", "Languages, frameworks, APIs, models, and infrastructure."),
+      required("impact", "Innovation and Feasibility", "What is novel, why it can work, and the constraints to address."),
+      required("demo", "Demo Plan", "Prototype flow, demo link, repository, screenshots, or walkthrough notes."),
+      required("presentation_preparation", "Presentation Preparation", "Pitch narrative, evidence, judging criteria, and speaker plan."),
+      required("final_submission_checklist", "Final Submission Checklist", "Official form, repository, video, deck, team details, and deadline checks."),
+      required("future_plans", "Post-Hackathon Plan", "How the project can continue after the event.")
     ]
   },
   {

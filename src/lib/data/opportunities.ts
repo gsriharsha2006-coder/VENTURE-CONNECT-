@@ -1,7 +1,12 @@
 import { opportunities as mockOpportunities } from "@/lib/data";
 import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
 import { toDatabaseRole, toUserRole } from "@/lib/auth/roles";
-import type { DomainTag, Opportunity, OpportunityMode, OpportunityType, StartupStage, UserRole } from "@/lib/types";
+import {
+  applicationMethodNeedsExternalUrl,
+  defaultApplicationMethodForType,
+  validateExternalRegistrationUrl
+} from "@/lib/opportunities/application-methods";
+import type { ApplicationMethod, DomainTag, Opportunity, OpportunityMode, OpportunityType, StartupStage, UserRole } from "@/lib/types";
 
 function normalizeType(value?: string | null): OpportunityType {
   const fallback: OpportunityType = "Investor opportunity";
@@ -10,12 +15,17 @@ function normalizeType(value?: string | null): OpportunityType {
     "Incubator program",
     "Accelerator program",
     "Hackathon",
+    "Startup competition",
+    "Workshop",
+    "Webinar",
+    "Networking event",
     "Startup event",
     "Company challenge/debug challenge",
     "Grants",
     "Competitions",
     "Fellowships",
-    "AI challenges"
+    "AI challenges",
+    "Other"
   ];
   return allowed.includes(value as OpportunityType) ? value as OpportunityType : fallback;
 }
@@ -37,10 +47,25 @@ function opportunityFromRow(row: {
   mode: string | null;
   verified: boolean | null;
   trending: boolean | null;
+  application_method: string | null;
   external_link: string | null;
   contact_email: string | null;
+  organizer_logo: string | null;
+  official_website: string | null;
+  event_start_date: string | null;
+  event_end_date: string | null;
+  venue: string | null;
+  team_size: string | null;
+  tracks: string[] | null;
+  registration_fee: string | null;
+  required_skills: string[] | null;
+  official_rules_url: string | null;
+  source_verification: string | null;
+  application_instructions: string | null;
+  direct_application_partner: boolean | null;
 }): Opportunity {
   const type = normalizeType(row.opportunity_type);
+  const applicationMethod = (row.application_method as ApplicationMethod | null) ?? defaultApplicationMethodForType(type);
   const domain = ((row.tags ?? []).find((tag) => ["AI", "SaaS", "FinTech", "HealthTech", "EdTech", "DeepTech", "AgriTech", "Consumer", "Social Impact"].includes(tag)) ?? "AI") as DomainTag;
 
   return {
@@ -57,7 +82,9 @@ function opportunityFromRow(row: {
     eligibility: row.eligibility ?? "Open to relevant startup teams.",
     guidelines: row.guidelines ?? "Submit a structured application and supporting context.",
     benefits: "Partner review and next-step guidance.",
-    requirements: ["Complete Idea Workspace document"],
+    requirements: applicationMethod === "idea_workspace_application"
+      ? ["Complete Idea Workspace document"]
+      : ["Complete registration on the organiser website"],
     tags: row.tags ?? [],
     location: row.location ?? "Remote",
     mode: (row.mode as OpportunityMode) ?? "Remote",
@@ -68,8 +95,22 @@ function opportunityFromRow(row: {
     domain,
     trust_score: row.verified ? 88 : 62,
     saved: false,
+    application_method: applicationMethod,
     external_link: row.external_link ?? undefined,
     contact_email: row.contact_email ?? undefined,
+    organizer_logo: row.organizer_logo ?? undefined,
+    official_website: row.official_website ?? undefined,
+    event_start_date: row.event_start_date ?? undefined,
+    event_end_date: row.event_end_date ?? undefined,
+    venue: row.venue ?? undefined,
+    team_size: row.team_size ?? undefined,
+    tracks: row.tracks ?? undefined,
+    registration_fee: row.registration_fee ?? undefined,
+    required_skills: row.required_skills ?? undefined,
+    official_rules_url: row.official_rules_url ?? undefined,
+    source_verification: row.source_verification ?? undefined,
+    application_instructions: row.application_instructions ?? undefined,
+    direct_application_partner: row.direct_application_partner ?? false,
     organization: row.organizer_name ?? undefined,
     type,
     funding: row.prize_or_funding ?? undefined,
@@ -99,7 +140,24 @@ export async function createOpportunity(input: {
   deadline: string;
   organizerName?: string;
   creatorRole?: Exclude<UserRole, "Founder" | "Service Provider" | "Validator">;
+  applicationMethod?: ApplicationMethod;
+  externalLink?: string;
+  sourceVerification?: string;
+  officialRulesUrl?: string;
+  contactEmail?: string;
+  registrationFee?: string;
+  applicationInstructions?: string;
+  directApplicationPartner?: boolean;
 }) {
+  const applicationMethod = input.applicationMethod ?? defaultApplicationMethodForType(input.type);
+  if (applicationMethodNeedsExternalUrl(applicationMethod)) {
+    const externalUrl = validateExternalRegistrationUrl(input.externalLink);
+    if (!externalUrl.valid) throw new Error(externalUrl.error);
+    if (!input.organizerName?.trim() || !input.sourceVerification?.trim()) {
+      throw new Error("External registrations require an organiser name and source verification.");
+    }
+  }
+
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("create opportunity");
   if (!supabase || !userId) {
@@ -108,6 +166,7 @@ export async function createOpportunity(input: {
       title: input.title,
       type: input.type,
       deadline: input.deadline,
+      applicationMethod,
       mode: "mock-fallback" as const
     };
   }
@@ -120,7 +179,15 @@ export async function createOpportunity(input: {
       title: input.title,
       organizer_name: input.organizerName ?? "Supabase organizer",
       opportunity_type: input.type,
+      application_method: applicationMethod,
       deadline: input.deadline,
+      external_link: input.externalLink ?? null,
+      source_verification: input.sourceVerification ?? null,
+      official_rules_url: input.officialRulesUrl ?? null,
+      contact_email: input.contactEmail ?? null,
+      registration_fee: input.registrationFee ?? null,
+      application_instructions: input.applicationInstructions ?? null,
+      direct_application_partner: input.directApplicationPartner ?? false,
       verified: false
     })
     .select()

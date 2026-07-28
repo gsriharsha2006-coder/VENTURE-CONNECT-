@@ -26,7 +26,7 @@ export function ValidationServiceCard({
           </Badge>
           <h3 className="mt-3 text-lg font-semibold text-slate-950">{service.type}</h3>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-right">
+        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-right">
           <p className="flex items-center gap-0.5 text-xl font-semibold text-slate-950">
             <IndianRupee size={16} />
             {service.founderPrice}

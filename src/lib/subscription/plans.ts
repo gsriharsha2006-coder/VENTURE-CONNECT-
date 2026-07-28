@@ -83,20 +83,23 @@ export const PRICING_TIERS = [
   }
 ];
 
-function normalizePlan(plan: Profile["plan"] | "Starter" | "Growth"): SubscriptionPlan {
-  if (plan === "Starter") return "Student Pro";
-  if (plan === "Growth") return "Founder Pro";
-  return plan;
+export function normalizeSubscriptionPlan(plan?: string | null): SubscriptionPlan {
+  const value = plan?.trim().toLowerCase().replace(/[- ]/g, "_");
+  if (value === "student_pro" || value === "starter") return "Student Pro";
+  if (value === "founder_pro" || value === "growth") return "Founder Pro";
+  return "Free";
 }
 
 export function computeEntitlements(profile: Profile): Entitlements {
-  const plan = normalizePlan(profile.plan);
+  const plan = normalizeSubscriptionPlan(profile.plan);
   const limits = PLAN_LIMITS[plan];
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  const resetDate = profile.reports_month_reset ? new Date(profile.reports_month_reset) : monthStart;
-  const needsReset = resetDate < monthStart;
-  const used = needsReset ? 0 : profile.reports_used_this_month;
+  const currentUsageMonth = new Date().toISOString().slice(0, 7);
+  const recordedUsageMonth = profile.reports_month_reset?.match(/^(\d{4})-(0[1-9]|1[0-2])(?:-|$)/)?.[0].slice(0, 7);
+  const needsReset = Boolean(recordedUsageMonth && recordedUsageMonth !== currentUsageMonth);
+  const recordedUsage = Number.isFinite(profile.reports_used_this_month)
+    ? Math.max(0, profile.reports_used_this_month)
+    : 0;
+  const used = needsReset ? 0 : recordedUsage;
 
   return {
     plan,

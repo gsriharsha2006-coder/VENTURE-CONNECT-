@@ -23,6 +23,8 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
+import { StatusMessage } from "@/components/ui/FeedbackState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useDemoPlan } from "@/hooks/useDemoPlan";
 import {
@@ -356,23 +358,14 @@ export default function IdeaWorkspacePage() {
 
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center"
-      >
-        <div>
-          <Badge>Idea Workspace</Badge>
-          <h1 className="mt-3 text-3xl font-semibold tracking-normal text-slate-950">
-            Structured documents for investor-ready applications
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-            Create documents, fill required sections, autosave progress, export files, and generate VC Readiness Reports from selected workspaces.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <PageHeader
+        eyebrow="Idea Workspace"
+        title="Prepare structured startup documents."
+        description="Build application-ready startup documents or use the optional Hackathon Project workspace to prepare a solution, demo, and pitch."
+        actions={
+          <>
           <label className="flex h-10 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3">
-            <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">Demo plan</span>
+            <span className="text-sm font-medium text-blue-700">Demo plan</span>
             <select
               aria-label="Demo subscription plan"
               value={plan}
@@ -384,23 +377,20 @@ export default function IdeaWorkspacePage() {
               <option>Founder Pro</option>
             </select>
           </label>
-          <Button variant="secondary" onClick={() => setShowTemplatePicker(true)}>
+          <Button onClick={() => setShowTemplatePicker(true)}>
             <LayoutTemplate size={16} />
             New workspace
           </Button>
-          <Button onClick={openVcReport}>
+          <Button variant="secondary" onClick={openVcReport}>
             <Sparkles size={16} />
-            VC Readiness Report
+            VC readiness
           </Button>
-          <Button variant="secondary" onClick={requestHumanValidation}>
-            <ShieldCheck size={16} />
-            Request Human Validation
-          </Button>
-        </div>
-      </motion.div>
+          </>
+        }
+      />
 
       {persistenceError ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800">{persistenceError}</div>
+        <StatusMessage tone="error">{persistenceError}</StatusMessage>
       ) : null}
 
       <div className="grid min-w-0 gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
@@ -408,6 +398,7 @@ export default function IdeaWorkspacePage() {
           <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
             <Search size={16} className="text-slate-400" />
             <input
+              aria-label="Search Idea Workspace documents"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search workspaces..."
@@ -492,15 +483,20 @@ export default function IdeaWorkspacePage() {
               ))}
             </div>
             <p className="mt-3 text-xs text-slate-500">{autosave}</p>
-            {completion < 100 ? (
-              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                Complete your Idea Workspace document before applying to investor, incubator, hackathon, accelerator, or challenge posts.
+            {selected.template === "hackathon" ? (
+              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm leading-6 text-blue-900">
+                Registration is completed on the organiser&apos;s website. Use this optional Hackathon Project workspace to plan your solution and prepare your demo and pitch. Workspace completion never blocks official registration.
               </div>
-            ) : (
+            ) : null}
+            {completion < 100 && selected.template !== "hackathon" ? (
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                Complete your Idea Workspace document before applying to internal investor, incubator, accelerator, or partnered challenge posts.
+              </div>
+            ) : selected.template !== "hackathon" ? (
               <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
                 This document is complete and eligible for structured opportunity applications.
               </div>
-            )}
+            ) : null}
             <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="inline-flex items-center gap-2 font-semibold">
@@ -520,9 +516,9 @@ export default function IdeaWorkspacePage() {
           </Card>
 
           <div className="grid min-w-0 gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-            <Card className="p-3 xl:sticky xl:top-24 xl:self-start">
-              <p className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Sections</p>
-              <nav className="mt-2 space-y-1">
+            <Card className="min-w-0 overflow-hidden p-3 xl:sticky xl:top-24 xl:self-start">
+              <p className="px-2 text-sm font-medium text-slate-500">Sections</p>
+              <nav aria-label="Document sections" className="scrollbar-none mt-2 flex gap-2 overflow-x-auto pb-1 xl:block xl:space-y-1 xl:overflow-visible xl:pb-0">
                 {templateDef.sections.map((s) => {
                   const filled = (selected.sections[s.key]?.trim().length ?? 0) > 20;
                   return (
@@ -530,7 +526,7 @@ export default function IdeaWorkspacePage() {
                       key={s.key}
                       type="button"
                       onClick={() => setActiveSection(s.key)}
-                      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                      className={`flex min-h-10 w-auto shrink-0 items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition xl:w-full ${
                         activeSection === s.key
                           ? "bg-primary text-white"
                           : "text-slate-600 hover:bg-slate-100"
@@ -694,7 +690,7 @@ export default function IdeaWorkspacePage() {
             >
               <h2 className="text-xl font-semibold">Choose a workspace template</h2>
               <p className="mt-2 text-sm text-slate-600">
-                Each template changes the document structure and the required fields used for application eligibility.
+                Each template changes the document structure. Hackathon Project is for optional preparation and does not replace official organiser registration.
               </p>
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 {WORKSPACE_TEMPLATES.map((t) => {

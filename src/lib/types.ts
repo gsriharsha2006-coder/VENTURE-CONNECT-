@@ -211,17 +211,45 @@ export type IdeaWorkspaceItem = {
   versions: number;
 };
 
+export type ApplicationMethod =
+  | "external_registration"
+  | "idea_workspace_application"
+  | "hybrid_application"
+  | "information_only";
+
+export type ExternalRegistrationStatus =
+  | "Not Started"
+  | "Registration Opened"
+  | "Applied Externally"
+  | "Shortlisted"
+  | "Selected"
+  | "Not Selected"
+  | "Withdrawn";
+
+export type OpportunityAnalyticsEventType =
+  | "opportunity_viewed"
+  | "official_registration_clicked"
+  | "opportunity_saved"
+  | "marked_as_applied"
+  | "deadline_reminder_created"
+  | "external_application_status_updated";
+
 export type OpportunityType =
   | "Investor opportunity"
   | "Incubator program"
   | "Accelerator program"
   | "Hackathon"
+  | "Startup competition"
+  | "Workshop"
+  | "Webinar"
+  | "Networking event"
   | "Startup event"
   | "Company challenge/debug challenge"
   | "Grants"
   | "Competitions"
   | "Fellowships"
-  | "AI challenges";
+  | "AI challenges"
+  | "Other";
 
 export type OpportunityMode = "Remote" | "Hybrid" | "Offline";
 
@@ -261,8 +289,22 @@ export type Opportunity = {
   domain: DomainTag;
   trust_score: number;
   saved: boolean;
+  application_method: ApplicationMethod;
   external_link?: string;
   contact_email?: string;
+  organizer_logo?: string;
+  official_website?: string;
+  event_start_date?: string;
+  event_end_date?: string;
+  venue?: string;
+  team_size?: string;
+  tracks?: string[];
+  registration_fee?: string;
+  required_skills?: string[];
+  official_rules_url?: string;
+  source_verification?: string;
+  application_instructions?: string;
+  direct_application_partner?: boolean;
   /** Compatibility for older cards/routes. Prefer organizer_name. */
   organization?: string;
   /** Compatibility for older cards/routes. Prefer opportunity_type. */
@@ -295,6 +337,23 @@ export type Application = {
   reviewedAt?: string;
   packet: string[];
   timeline: Array<{ label: ApplicationStatus | "Meeting Created"; date: string; complete: boolean }>;
+};
+
+export type ExternalRegistration = {
+  id: string;
+  founder_id?: string;
+  opportunity_id: string;
+  opportunity_title: string;
+  organizer_name: string;
+  status: ExternalRegistrationStatus;
+  tracked_by_user: true;
+  external_application_id?: string;
+  team_name?: string;
+  submission_date?: string;
+  notes?: string;
+  confirmation_file_name?: string;
+  organizer_verified: boolean;
+  updated_at: string;
 };
 
 export type NotificationType =
