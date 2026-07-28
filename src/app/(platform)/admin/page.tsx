@@ -9,7 +9,10 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { adminStats, applications, opportunities, reportSuite, serviceProviders } from "@/lib/data";
+import { validationBadges, validationBookings, validationReports, validators } from "@/lib/data/validations";
 import type { ServiceVerificationStatus, SubscriptionPlan } from "@/lib/types";
+import { validationServices, validatorLevelRules } from "@/lib/validation/config";
+import type { ValidatorLevel } from "@/lib/validation/types";
 
 const seedUsers = [
   { id: "user-1", name: "Nisha Rao", role: "Founder", plan: "Free" as SubscriptionPlan, verification: "Verified", trust: 82 },
@@ -23,6 +26,8 @@ export default function AdminPage() {
   const [users, setUsers] = useState(seedUsers);
   const [providerStatuses, setProviderStatuses] = useState<Record<string, ServiceVerificationStatus>>({});
   const [opportunityStatuses, setOpportunityStatuses] = useState<Record<string, "Approved" | "Rejected">>({});
+  const [validatorStatuses, setValidatorStatuses] = useState<Record<string, "Approved" | "Rejected" | "Suspended">>({});
+  const [validatorLimits, setValidatorLimits] = useState<Record<string, ValidatorLevel>>({});
   const [notice, setNotice] = useState("");
 
   function setProviderStatus(id: string, status: ServiceVerificationStatus) {
@@ -40,7 +45,12 @@ export default function AdminPage() {
     users: ["User management", "Verify, suspend, and review founders, investors, organizers, and service providers."],
     opportunities: ["Opportunity moderation", "Approve or reject reviewer-created opportunity posts before founder discovery."],
     providers: ["Provider verification", "Review credentials and apply Venture Connect and CGPDTM trust markers."],
-    reports: ["VC Readiness usage", "Track report type, required plan, application state, and mock fallback readiness."],
+    validators: ["Validator applications and credential review", "Approve, reject, suspend, and configure weekly limits for human validators."],
+    bookings: ["Validation bookings", "Review booked validations, document access state, acceptance, completion, and dispute risk."],
+    reports: ["Reports and flagged review quality", "Track VC readiness reports plus structured human validation reports and badge recommendations."],
+    payments: ["Payments and payouts", "Monitor escrow payments, commission configuration, and validator payout release conditions."],
+    disputes: ["Disputes and flagged reports", "Review founder disputes, late reports, quality concerns, and confidential-access issues."],
+    settings: ["Validation settings", "Configure commission, validator limits, pricing ranges, badge rules, and review requirements."],
     subscriptions: ["Subscription controls", "Review usage and manually change plans for MVP testing."]
   };
   const [title, subtitle] = headings[view] ?? headings.overview;
@@ -82,6 +92,11 @@ export default function AdminPage() {
               <CardHeader eyebrow="Providers" title="Verification queue" />
               <p className="text-4xl font-semibold">{serviceProviders.filter((provider) => provider.verification_status === "Pending").length}</p>
               <p className="mt-2 text-sm text-slate-600">Providers awaiting a manual trust review.</p>
+            </Card>
+            <Card>
+              <CardHeader eyebrow="Validation Hub" title="Human review controls" />
+              <p className="text-4xl font-semibold">{validationBookings.length}</p>
+              <p className="mt-2 text-sm text-slate-600">Bookings with report, badge, payout, and dispute gates.</p>
             </Card>
           </div>
         </>
@@ -177,18 +192,205 @@ export default function AdminPage() {
         </Card>
       ) : null}
 
+      {view === "validators" ? (
+        <Card>
+          <CardHeader eyebrow="Validators" title="Credential review and limits" />
+          <div className="space-y-3">
+            {validators.map((validator) => {
+              const status = validatorStatuses[validator.id] ?? "Approved";
+              const level = validatorLimits[validator.id] ?? validator.level;
+              return (
+                <div key={validator.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-slate-950">{validator.name}</p>
+                        <Badge tone={status === "Approved" ? "green" : status === "Suspended" ? "red" : "amber"}>{status}</Badge>
+                        <Badge tone="slate">{level}</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">{validator.role} / {validator.institution} / {validator.completedValidations} completed</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value={level}
+                        onChange={(event) => {
+                          setValidatorLimits((current) => ({ ...current, [validator.id]: event.target.value as ValidatorLevel }));
+                          setNotice(`Weekly limits updated for ${validator.name}.`);
+                        }}
+                        className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                      >
+                        {Object.keys(validatorLevelRules).map((item) => <option key={item}>{item}</option>)}
+                      </select>
+                      <Button size="sm" onClick={() => setValidatorStatuses((current) => ({ ...current, [validator.id]: "Approved" }))}><CheckCircle2 size={14} />Approve</Button>
+                      <Button size="sm" variant="secondary" onClick={() => setValidatorStatuses((current) => ({ ...current, [validator.id]: "Rejected" }))}>Reject</Button>
+                      <Button size="sm" variant="secondary" onClick={() => setValidatorStatuses((current) => ({ ...current, [validator.id]: "Suspended" }))}>Suspend</Button>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 text-xs text-slate-600 md:grid-cols-3">
+                    <p className="rounded-lg border border-slate-200 bg-white p-3">Weekly limit: {validatorLevelRules[level].weeklyLimit}</p>
+                    <p className="rounded-lg border border-slate-200 bg-white p-3">{validatorLevelRules[level].pricingRange}</p>
+                    <p className="rounded-lg border border-slate-200 bg-white p-3">Only admins can approve validators.</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      ) : null}
+
+      {view === "bookings" ? (
+        <Card>
+          <CardHeader eyebrow="Bookings" title="Validation booking oversight" />
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-left text-sm">
+              <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="py-3 pr-4">Booking</th>
+                  <th className="py-3 pr-4">Founder</th>
+                  <th className="py-3 pr-4">Validator</th>
+                  <th className="py-3 pr-4">Service</th>
+                  <th className="py-3 pr-4">Document</th>
+                  <th className="py-3 pr-4">Status</th>
+                  <th className="py-3 pr-4">Access</th>
+                </tr>
+              </thead>
+              <tbody>
+                {validationBookings.map((booking) => {
+                  const validator = validators.find((item) => item.id === booking.validatorId);
+                  return (
+                    <tr key={booking.id} className="border-b border-slate-100">
+                      <td className="py-3 pr-4 font-semibold">{booking.workspace.startupName}</td>
+                      <td className="py-3 pr-4">{booking.founderName}</td>
+                      <td className="py-3 pr-4">{validator?.name}</td>
+                      <td className="py-3 pr-4">{booking.serviceType}</td>
+                      <td className="py-3 pr-4">v{booking.workspace.version} / {booking.workspace.completionPercentage}%</td>
+                      <td className="py-3 pr-4"><Badge>{booking.status}</Badge></td>
+                      <td className="py-3 pr-4">{booking.accepted ? "Unlocked after acceptance" : "Locked"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : null}
+
       {view === "reports" ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {reportSuite.map((report) => (
-            <Card key={report.id}>
-              <Badge>{report.plan}</Badge>
-              <h2 className="mt-3 font-semibold">{report.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{report.subtitle}</p>
-              <div className="mt-4 flex items-center justify-between text-sm">
-                <span>Latest score</span><strong>{report.score}/100</strong>
+        <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {reportSuite.map((report) => (
+              <Card key={report.id}>
+                <Badge>{report.plan}</Badge>
+                <h2 className="mt-3 font-semibold">{report.title}</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{report.subtitle}</p>
+                <div className="mt-4 flex items-center justify-between text-sm">
+                  <span>Latest score</span><strong>{report.score}/100</strong>
+                </div>
+              </Card>
+            ))}
+          </div>
+          <Card>
+            <CardHeader eyebrow="Human validation reports" title="Badge and quality review" />
+            <div className="space-y-3">
+              {validationReports.map((report) => (
+                <div key={report.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">{report.serviceType} / {report.readinessStage}</p>
+                      <p className="mt-1 text-xs text-slate-500">Booking {report.bookingId} / v{report.ideaWorkspaceVersion}</p>
+                    </div>
+                    <Badge tone={report.approvedForBadge ? "green" : "amber"}>{report.approvedForBadge ? "Badge approved" : "Needs review"}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      ) : null}
+
+      {view === "payments" ? (
+        <Card>
+          <CardHeader eyebrow="Payments" title="Escrow, commissions, and payouts" />
+          <div className="grid gap-3 md:grid-cols-3">
+            {Object.values(validationServices).map((service) => (
+              <div key={service.type} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <Badge>{service.type}</Badge>
+                <p className="mt-3 text-sm">Founder pays: <strong>Rs {service.founderPrice}</strong></p>
+                <p className="mt-1 text-sm">Validator receives: <strong>Rs {service.validatorPayout}</strong></p>
+                <p className="mt-1 text-sm">Venture Connect earns: <strong>Rs {service.platformShare}</strong></p>
               </div>
-            </Card>
-          ))}
+            ))}
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            {["Required report submitted", "Session completed when applicable", "Founder dispute window ended"].map((item) => (
+              <p key={item} className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">{item}</p>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
+      {view === "disputes" ? (
+        <Card>
+          <CardHeader eyebrow="Disputes" title="Quality and confidentiality review" />
+          <div className="space-y-3">
+            {[
+              ["validation-booking-2", "Late report risk", "Session scheduled but report not yet started."],
+              ["validation-booking-4", "Document access pending", "Validator has not accepted, so full document is still locked."],
+              ["validation-report-1", "Badge audit", "Verify report sections before public badge summary remains visible."]
+            ].map(([id, label, body]) => (
+              <div key={id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{label}</p>
+                    <p className="mt-1 text-sm text-slate-600">{body}</p>
+                  </div>
+                  <Button size="sm" variant="secondary">Review</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
+      {view === "settings" ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader eyebrow="Commission" title="Configurable pricing rules" />
+            <div className="space-y-3">
+              {Object.values(validationServices).map((service) => (
+                <div key={service.type} className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm sm:grid-cols-3">
+                  <label>
+                    <span className="text-xs text-slate-500">Founder price</span>
+                    <input value={service.founderPrice} readOnly className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2" />
+                  </label>
+                  <label>
+                    <span className="text-xs text-slate-500">Validator payout</span>
+                    <input value={service.validatorPayout} readOnly className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2" />
+                  </label>
+                  <label>
+                    <span className="text-xs text-slate-500">Platform share</span>
+                    <input value={service.platformShare} readOnly className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2" />
+                  </label>
+                </div>
+              ))}
+            </div>
+          </Card>
+          <Card>
+            <CardHeader eyebrow="Badge rules" title="Public summary safeguards" />
+            <div className="space-y-3">
+              {[
+                "No badge after payment or booking only.",
+                "Report must approve the exact Idea Workspace version.",
+                "Limited investor summary never exposes the full confidential report by default.",
+                "Major document changes show Revalidation Recommended."
+              ].map((rule) => (
+                <p key={rule} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">{rule}</p>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {validationBadges.map((badge) => <Badge key={badge.id} tone="green">{badge.name}</Badge>)}
+            </div>
+          </Card>
         </div>
       ) : null}
 

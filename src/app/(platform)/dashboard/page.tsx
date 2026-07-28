@@ -5,19 +5,21 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   CheckCircle2,
+  CalendarCheck2,
   FileChartColumn,
   Lightbulb,
   LockKeyhole,
   MessagesSquare,
   Send,
-  Store
+  ShieldCheck
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { applications, dashboardStats, ideaWorkspaces, messageThreads, opportunities, reportSuite, servicePosts } from "@/lib/data";
+import { applications, dashboardStats, ideaWorkspaces, messageThreads, opportunities, reportSuite } from "@/lib/data";
+import { getBadgesForWorkspace, validationBookings } from "@/lib/data/validations";
 import { completionPercent, missingRequiredSections } from "@/lib/templates";
 
 export default function DashboardPage() {
@@ -26,6 +28,8 @@ export default function DashboardPage() {
   const missing = missingRequiredSections(latest.sections, latest.template);
   const canApply = completion === 100;
   const interestedThread = messageThreads[0];
+  const latestBadges = getBadgesForWorkspace(latest.id);
+  const upcomingValidation = validationBookings.find((booking) => booking.status !== "Validation Completed") ?? validationBookings[0];
 
   return (
     <div className="space-y-6">
@@ -54,6 +58,12 @@ export default function DashboardPage() {
               Apply
             </Button>
           </Link>
+          <Link href="/dashboard/validation-hub" className="flex">
+            <Button variant="secondary">
+              <ShieldCheck size={16} />
+              Validate
+            </Button>
+          </Link>
         </div>
       </motion.div>
 
@@ -74,6 +84,7 @@ export default function DashboardPage() {
                   <Badge tone={latest.status === "Complete" ? "green" : "amber"}>{latest.status}</Badge>
                   <Badge>{latest.template}</Badge>
                   {latest.video_link ? <Badge tone="slate">Video link attached</Badge> : null}
+                  {latestBadges.length ? <Badge tone="green">Human Reviewed</Badge> : null}
                 </div>
               </div>
               <div className="min-w-56 rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -176,21 +187,17 @@ export default function DashboardPage() {
           </Card>
 
           <Card>
-            <CardHeader eyebrow="Services" title="Verified provider shortcut" />
-            <div className="space-y-3">
-              {servicePosts.slice(0, 2).map((post) => (
-                <div key={post.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <div className="flex items-center gap-2">
-                    <Store size={16} className="text-primary" />
-                    <p className="text-sm font-semibold">{post.title}</p>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">Starts at Rs {post.original_price.toLocaleString("en-IN")}</p>
-                </div>
-              ))}
+            <CardHeader eyebrow="Validation" title="Upcoming human review" />
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+                <CalendarCheck2 size={16} />
+                {upcomingValidation.workspace.startupName}
+              </div>
+              <p className="mt-2 text-sm leading-6 text-blue-800">{upcomingValidation.status} / {upcomingValidation.serviceType}</p>
             </div>
-            <Link href="/dashboard/services">
+            <Link href={`/dashboard/validation-hub/workspace/${upcomingValidation.id}`}>
               <Button variant="secondary" className="mt-4 w-full">
-                Browse services
+                Open validation workspace
               </Button>
             </Link>
           </Card>
@@ -198,7 +205,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader eyebrow="Trust" title="Application readiness rules" />
             <div className="space-y-3 text-sm text-slate-600">
-              {["Investor/incubator/hackathon applications require a complete Idea Workspace document.", "Events can be applied to directly after reading guidelines.", "Free founders see interest but not full chat or meeting links."].map((item) => (
+              {["Investor/incubator/hackathon applications require a complete Idea Workspace document.", "Human-reviewed badges require a completed validator report and approved document version.", "Free founders see interest but not full chat or meeting links."].map((item) => (
                 <p key={item} className="flex gap-2">
                   <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-600" />
                   {item}

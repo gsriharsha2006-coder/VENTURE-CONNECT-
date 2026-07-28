@@ -21,6 +21,7 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { useDemoPlan } from "@/hooks/useDemoPlan";
 import { applyToOpportunity } from "@/lib/data/applications";
 import { ideaWorkspaces, opportunities as seedOpportunities } from "@/lib/data";
+import { getBadgesForWorkspace } from "@/lib/data/validations";
 import { getOpportunities } from "@/lib/data/opportunities";
 import { PLAN_LIMITS } from "@/lib/subscription/plans";
 import { completionPercent, missingRequiredSections } from "@/lib/templates";
@@ -83,6 +84,7 @@ export default function OpportunitiesPage() {
 
   const selectedWorkspace = ideaWorkspaces.find((workspace) => workspace.id === workspaceId) ?? ideaWorkspaces[0];
   const selectedCompletion = completionPercent(selectedWorkspace.sections, selectedWorkspace.template);
+  const selectedBadges = getBadgesForWorkspace(selectedWorkspace.id);
 
   const filtered = useMemo(
     () =>
@@ -105,6 +107,25 @@ export default function OpportunitiesPage() {
       }),
     [category, deadlineQuery, domain, eligibilityQuery, fundingQuery, level, mode, opportunities, query, stage, trendingOnly, type, verifiedOnly]
   );
+  const hasActiveFilters = Boolean(
+    query || type !== "All" || domain !== "All" || mode !== "All" || category !== "All" || level !== "All" || stage !== "All" ||
+    fundingQuery || eligibilityQuery || deadlineQuery || verifiedOnly || trendingOnly
+  );
+
+  function clearFilters() {
+    setQuery("");
+    setType("All");
+    setDomain("All");
+    setMode("All");
+    setCategory("All");
+    setLevel("All");
+    setStage("All");
+    setFundingQuery("");
+    setEligibilityQuery("");
+    setDeadlineQuery("");
+    setVerifiedOnly(false);
+    setTrendingOnly(false);
+  }
 
   function toggleSaved(id: string) {
     setOpportunities((current) =>
@@ -140,7 +161,7 @@ export default function OpportunitiesPage() {
       ideaWorkspaceId: eventException ? null : selectedWorkspace.id,
       isEventApplication: eventException
     });
-    setWarning(eventException ? "Event application submitted after guidelines review. Idea Workspace was not required." : "Application submitted with completed Idea Workspace document.");
+    setWarning(eventException ? "Event application submitted after guidelines review. Idea Workspace was not required." : selectedBadges.length ? "Application submitted with completed Human Reviewed Idea Workspace summary." : "Application submitted with completed Idea Workspace document.");
   }
 
   return (
@@ -148,7 +169,7 @@ export default function OpportunitiesPage() {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Badge>Opportunities</Badge>
@@ -177,18 +198,27 @@ export default function OpportunitiesPage() {
       ) : null}
 
       <Card>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-950">Find the right opportunity</p>
+            <p className="mt-1 text-xs text-slate-500">{filtered.length} result{filtered.length === 1 ? "" : "s"} match your filters</p>
+          </div>
+          {hasActiveFilters ? (
+            <Button size="sm" variant="ghost" onClick={clearFilters}>Reset filters</Button>
+          ) : null}
+        </div>
         <div className="grid gap-3 xl:grid-cols-[1fr_220px_180px_160px_auto]">
-          <label className="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3">
+          <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-blue-100">
             <Search size={17} className="text-slate-400" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none" placeholder="Search title, organizer, tags..." />
+            <input aria-label="Search opportunities" value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none" placeholder="Search title, organizer, tags..." />
           </label>
-          <select value={type} onChange={(event) => setType(event.target.value as (typeof opportunityTypes)[number])} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 outline-none">
+          <select aria-label="Opportunity type" value={type} onChange={(event) => setType(event.target.value as (typeof opportunityTypes)[number])} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 outline-none">
             {opportunityTypes.map((item) => <option key={item}>{item}</option>)}
           </select>
-          <select value={domain} onChange={(event) => setDomain(event.target.value as (typeof domains)[number])} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 outline-none">
+          <select aria-label="Opportunity domain" value={domain} onChange={(event) => setDomain(event.target.value as (typeof domains)[number])} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 outline-none">
             {domains.map((item) => <option key={item}>{item}</option>)}
           </select>
-          <select value={mode} onChange={(event) => setMode(event.target.value as (typeof modes)[number])} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 outline-none">
+          <select aria-label="Opportunity mode" value={mode} onChange={(event) => setMode(event.target.value as (typeof modes)[number])} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 outline-none">
             {modes.map((item) => <option key={item}>{item}</option>)}
           </select>
           <Button variant={verifiedOnly ? "primary" : "secondary"} onClick={() => setVerifiedOnly((value) => !value)}>
@@ -197,23 +227,23 @@ export default function OpportunitiesPage() {
           </Button>
         </div>
         <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <select value={category} onChange={(event) => setCategory(event.target.value)} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
+          <select aria-label="Opportunity category" value={category} onChange={(event) => setCategory(event.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-600">
             {categories.map((item) => <option key={item}>{item}</option>)}
           </select>
-          <select value={level} onChange={(event) => setLevel(event.target.value as (typeof levels)[number])} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
+          <select aria-label="Difficulty level" value={level} onChange={(event) => setLevel(event.target.value as (typeof levels)[number])} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-600">
             {levels.map((item) => <option key={item} value={item}>{item === "All" ? "All difficulty levels" : item}</option>)}
           </select>
-          <select value={stage} onChange={(event) => setStage(event.target.value as (typeof stages)[number])} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
+          <select aria-label="Startup stage" value={stage} onChange={(event) => setStage(event.target.value as (typeof stages)[number])} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-600">
             {stages.map((item) => <option key={item} value={item}>{item === "All" ? "All startup stages" : item}</option>)}
           </select>
           <Button variant={trendingOnly ? "primary" : "secondary"} onClick={() => setTrendingOnly((value) => !value)}>
             <TrendingUp size={16} />
             Trending
           </Button>
-          <input value={deadlineQuery} onChange={(event) => setDeadlineQuery(event.target.value)} placeholder="Deadline (e.g. Jul)" className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none" />
-          <input value={fundingQuery} onChange={(event) => setFundingQuery(event.target.value)} placeholder="Funding, prize, or grant" className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none" />
-          <input value={eligibilityQuery} onChange={(event) => setEligibilityQuery(event.target.value)} placeholder="Eligibility" className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none" />
-          <div className="flex items-center rounded-lg border border-blue-100 bg-blue-50 px-3 text-sm text-blue-900">
+          <input aria-label="Deadline filter" value={deadlineQuery} onChange={(event) => setDeadlineQuery(event.target.value)} placeholder="Deadline (e.g. Jul)" className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none" />
+          <input aria-label="Funding filter" value={fundingQuery} onChange={(event) => setFundingQuery(event.target.value)} placeholder="Funding, prize, or grant" className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none" />
+          <input aria-label="Eligibility filter" value={eligibilityQuery} onChange={(event) => setEligibilityQuery(event.target.value)} placeholder="Eligibility" className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none" />
+          <div className="flex items-center rounded-xl border border-blue-100 bg-blue-50 px-3 text-sm text-blue-900">
             {applied.length}/{PLAN_LIMITS[plan].opportunitySubmissionsPerMonth} monthly submissions used
           </div>
         </div>
@@ -313,6 +343,20 @@ export default function OpportunitiesPage() {
               <p className="mt-3 text-xs leading-5 text-slate-500">
                 Events can be submitted after reading guidelines. All other opportunity types require 100% completion.
               </p>
+              {selectedBadges.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedBadges.map((badge) => (
+                    <Badge key={badge.id} tone="green">
+                      <ShieldCheck size={13} />
+                      {badge.name}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  No Human Reviewed badge yet. You can request validation from the Validation Hub before high-stakes applications.
+                </p>
+              )}
             </div>
           </Card>
 

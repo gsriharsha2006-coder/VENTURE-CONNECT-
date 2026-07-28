@@ -2,13 +2,11 @@ import { cn } from "@/lib/utils";
 
 export function Card({
   children,
-  className
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("premium-card rounded-lg p-5", className)}>
+    <div className={cn("premium-card rounded-2xl p-5", className)} {...props}>
       {children}
     </div>
   );

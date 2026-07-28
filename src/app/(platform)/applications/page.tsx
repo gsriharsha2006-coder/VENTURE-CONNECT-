@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, ClipboardList, FileChartColumn, Lightbulb, MessagesSquare, Save, XCircle } from "lucide-react";
+import { CheckCircle2, ClipboardList, FileChartColumn, Lightbulb, MessagesSquare, Save, ShieldCheck, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { applications as seedApplications } from "@/lib/data";
+import { getBadgesForWorkspace } from "@/lib/data/validations";
 import type { ApplicationStatus } from "@/lib/types";
 
 const actions: Array<{ label: string; status: ApplicationStatus; icon: typeof CheckCircle2; tone: "primary" | "secondary" }> = [
@@ -29,6 +30,7 @@ export default function ApplicationsPage() {
   const [applications, setApplications] = useState(seedApplications);
   const [selectedId, setSelectedId] = useState(seedApplications[0].id);
   const selected = applications.find((application) => application.id === selectedId) ?? applications[0];
+  const validationBadges = selected.idea_workspace_id ? getBadgesForWorkspace(selected.idea_workspace_id) : [];
 
   function updateStatus(status: ApplicationStatus) {
     setApplications((current) =>
@@ -110,10 +112,11 @@ export default function ApplicationsPage() {
             </div>
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 lg:grid-cols-4">
             {[
               { label: "Idea Workspace", icon: Lightbulb, text: selected.idea_workspace_id ? "Completed document attached." : "Event application, document optional." },
               { label: "VC Readiness Report", icon: FileChartColumn, text: "Report score and summary visible to reviewers." },
+              { label: "Human Validation", icon: ShieldCheck, text: validationBadges.length ? "Limited Human Reviewed summary available." : "No human-reviewed badge attached." },
               { label: "Message Thread", icon: MessagesSquare, text: selected.status === "Interested" ? "Thread created after interest." : "Locked until Interested." }
             ].map((packet) => {
               const Icon = packet.icon;

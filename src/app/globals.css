@@ -9,6 +9,8 @@
   --muted: #64748b;
   --line: rgba(148, 163, 184, 0.28);
   --surface: #ffffff;
+  --surface-soft: #f8fafc;
+  --focus-ring: rgba(37, 99, 235, 0.22);
   color-scheme: light;
 }
 
@@ -30,6 +32,7 @@ html {
 
 body {
   margin: 0;
+  min-width: 320px;
   color: var(--ink);
   background:
     linear-gradient(180deg, rgba(239, 246, 255, 0.7) 0%, rgba(255, 255, 255, 0) 38rem),
@@ -56,6 +59,39 @@ textarea {
   font: inherit;
 }
 
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+input,
+select,
+textarea {
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--primary-blue) !important;
+  box-shadow: 0 0 0 4px var(--focus-ring);
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--primary-blue);
+  outline-offset: 3px;
+}
+
 ::selection {
   background: rgba(37, 99, 235, 0.16);
   color: #0f172a;
@@ -78,7 +114,23 @@ textarea {
 .premium-card {
   border: 1px solid rgba(148, 163, 184, 0.2);
   background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 14px 44px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.065);
+}
+
+.interactive-card {
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.interactive-card:hover {
+  border-color: rgba(59, 130, 246, 0.32);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.09);
+  transform: translateY(-2px);
+}
+
+.app-page {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 1600px;
 }
 
 html.dark .premium-card,
@@ -183,6 +235,23 @@ html.dark select {
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background: rgba(37, 99, 235, 0.32);
   border-radius: 999px;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -98,7 +98,7 @@ export async function createOpportunity(input: {
   type: OpportunityType;
   deadline: string;
   organizerName?: string;
-  creatorRole?: Exclude<UserRole, "Founder" | "Service Provider">;
+  creatorRole?: Exclude<UserRole, "Founder" | "Service Provider" | "Validator">;
 }) {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("create opportunity");

@@ -14,6 +14,7 @@ import {
   LayoutTemplate,
   Save,
   Search,
+  ShieldCheck,
   Sparkles,
   Tag,
   Trash2,
@@ -32,6 +33,7 @@ import {
   updateIdeaWorkspace
 } from "@/lib/data/ideaWorkspaces";
 import { ideaWorkspaces as seedWorkspaces } from "@/lib/data";
+import { getBadgesForWorkspace } from "@/lib/data/validations";
 import { isSupabaseConfigured } from "@/lib/supabase/isConfigured";
 import { PLAN_LIMITS } from "@/lib/subscription/plans";
 import { completionPercent, getTemplateDef, WORKSPACE_TEMPLATES } from "@/lib/templates";
@@ -162,6 +164,7 @@ export default function IdeaWorkspacePage() {
   }, [workspaces, searchQuery]);
 
   const completion = selected ? completionPercent(selected.sections, selected.template) : 0;
+  const validationBadges = selected ? getBadgesForWorkspace(selected.id) : [];
 
   const updateSelected = useCallback(
     (patch: Partial<IdeaWorkspaceItem>) => {
@@ -309,6 +312,12 @@ export default function IdeaWorkspacePage() {
     router.push("/dashboard/vc-readiness");
   }
 
+  function requestHumanValidation() {
+    if (!selected) return;
+    window.localStorage.setItem("venture-connect-active-workspace", JSON.stringify(selected));
+    router.push("/dashboard/validation-hub");
+  }
+
   function changeStatus(nextStatus: IdeaStatus) {
     if (!selected) return;
     if (nextStatus === "Complete" && completion < 100) {
@@ -350,7 +359,7 @@ export default function IdeaWorkspacePage() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col justify-between gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center"
+        className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center"
       >
         <div>
           <Badge>Idea Workspace</Badge>
@@ -383,6 +392,10 @@ export default function IdeaWorkspacePage() {
             <Sparkles size={16} />
             VC Readiness Report
           </Button>
+          <Button variant="secondary" onClick={requestHumanValidation}>
+            <ShieldCheck size={16} />
+            Request Human Validation
+          </Button>
         </div>
       </motion.div>
 
@@ -390,9 +403,9 @@ export default function IdeaWorkspacePage() {
         <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800">{persistenceError}</div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        <Card className="p-4 lg:col-span-1">
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <Card className="min-w-0 p-4 xl:sticky xl:top-24 xl:self-start">
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
             <Search size={16} className="text-slate-400" />
             <input
               value={searchQuery}
@@ -425,7 +438,7 @@ export default function IdeaWorkspacePage() {
           </div>
         </Card>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <Card className="p-4">
             <div className="space-y-4">
               <label className="block">
@@ -488,10 +501,26 @@ export default function IdeaWorkspacePage() {
                 This document is complete and eligible for structured opportunity applications.
               </div>
             )}
+            <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-2 font-semibold">
+                  <ShieldCheck size={16} />
+                  {validationBadges.length ? "Human-reviewed document version available" : "Request expert review when your document is ready"}
+                </span>
+                <Button size="sm" variant="secondary" onClick={requestHumanValidation}>
+                  Request Human Validation
+                </Button>
+              </div>
+              {validationBadges.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {validationBadges.map((badge) => <Badge key={badge.id} tone="green">{badge.name}</Badge>)}
+                </div>
+              ) : null}
+            </div>
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
-            <Card className="p-3">
+          <div className="grid min-w-0 gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+            <Card className="p-3 xl:sticky xl:top-24 xl:self-start">
               <p className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Sections</p>
               <nav className="mt-2 space-y-1">
                 {templateDef.sections.map((s) => {
@@ -515,7 +544,7 @@ export default function IdeaWorkspacePage() {
               </nav>
             </Card>
 
-            <Card className="p-4">
+            <Card className="min-w-0 p-4">
               {sectionMeta ? (
                 <>
                   <CardHeader
@@ -528,7 +557,7 @@ export default function IdeaWorkspacePage() {
                     onChange={(e) => updateSection(activeSection, e.target.value)}
                     placeholder={sectionMeta.hint}
                     rows={14}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm leading-6 outline-none focus:border-primary"
+                    className="min-h-[360px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm leading-6 outline-none"
                   />
                   <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Markdown preview</p>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowRight,
   Building2,
+  LoaderCircle,
   Mail,
   Phone,
   ShieldCheck,
@@ -26,7 +27,8 @@ const roleCards: Array<{ role: UserRole; title: string; description: string }> =
   { role: "Incubator", title: "Incubator", description: "Post programs and review startup applications" },
   { role: "Hackathon Organizer", title: "Hackathon Organizer", description: "Post hackathons and manage submissions" },
   { role: "Event Organizer", title: "Event Organizer", description: "Post startup events and competitions" },
-  { role: "Service Provider", title: "Service Provider", description: "Offer startup services after verification" }
+  { role: "Service Provider", title: "Service Provider", description: "Offer startup services after verification" },
+  { role: "Validator", title: "Validator", description: "Review Idea Workspace documents after approval" }
 ];
 
 function companyLabel(role: UserRole) {
@@ -35,6 +37,7 @@ function companyLabel(role: UserRole) {
   if (role === "Incubator") return "Incubator/Institution name";
   if (role === "Hackathon Organizer" || role === "Event Organizer") return "Organization name";
   if (role === "Service Provider") return "Firm/Company name";
+  if (role === "Validator") return "Institution or company name";
   return "Company name";
 }
 
@@ -52,6 +55,7 @@ export default function AuthPage() {
   const [website, setWebsite] = useState("");
   const [experience, setExperience] = useState("");
   const [cgpdtm, setCgpdtm] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState(
     supabaseReady
       ? "Live Supabase authentication is ready."
@@ -78,54 +82,64 @@ export default function AuthPage() {
     window.location.assign(dashboardForRole(profile.role));
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     if (!email || !password) {
       setStatus("Enter email and password to continue.");
       return;
     }
+    if (submitting) return;
 
-    if (!supabase) {
-      setStatus(`${mode === "signup" ? "Signup" : "Login"} ready for ${email} as ${role}. Configure Supabase to persist accounts.`);
-      return;
-    }
+    setSubmitting(true);
+    setStatus(mode === "signup" ? "Creating your account..." : "Signing you in...");
+    try {
+      if (!supabase) {
+        setStatus(`${mode === "signup" ? "Signup" : "Login"} ready for ${email} as ${role}. Configure Supabase to persist accounts.`);
+        return;
+      }
 
-    if (mode === "signup") {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: redirectTo,
-          data: {
-            role: toDatabaseRole(role),
-            full_name: fullName || email.split("@")[0],
-            company_name: companyName,
-            phone,
-            service_category: role === "Service Provider" ? serviceCategory : undefined,
-            pan_or_gst: role === "Service Provider" ? panOrGst : undefined,
-            website_or_linkedin: role === "Service Provider" ? website : undefined,
-            experience_details: role === "Service Provider" ? experience : undefined,
-            cgpdtm_registration_number: role === "Service Provider" ? cgpdtm : undefined
+      if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: redirectTo,
+            data: {
+              role: toDatabaseRole(role),
+              full_name: fullName || email.split("@")[0],
+              company_name: companyName,
+              phone,
+              service_category: role === "Service Provider" ? serviceCategory : undefined,
+              pan_or_gst: role === "Service Provider" ? panOrGst : undefined,
+              website_or_linkedin: role === "Service Provider" ? website : undefined,
+              experience_details: role === "Service Provider" ? experience : undefined,
+              cgpdtm_registration_number: role === "Service Provider" ? cgpdtm : undefined
+            }
           }
+        });
+        if (error) {
+          setStatus(error.message);
+          return;
         }
-      });
+        if (data.session && data.user) {
+          await redirectAuthenticatedUser(data.user.id);
+          return;
+        }
+        setStatus(`Signup started for ${email}. Check your inbox to confirm the account.`);
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         setStatus(error.message);
         return;
       }
-      if (data.session && data.user) {
-        await redirectAuthenticatedUser(data.user.id);
-        return;
-      }
-      setStatus(`Signup started for ${email}. Check your inbox to confirm the account.`);
-      return;
+      if (data.user) await redirectAuthenticatedUser(data.user.id);
+    } catch {
+      setStatus("Authentication could not be completed. Check your connection and try again.");
+    } finally {
+      setSubmitting(false);
     }
-
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setStatus(error.message);
-      return;
-    }
-    if (data.user) await redirectAuthenticatedUser(data.user.id);
   }
 
   async function handlePasswordReset() {
@@ -143,33 +157,34 @@ export default function AuthPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <div className="grid min-h-screen lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="flex flex-col justify-between bg-slate-950 p-8 text-white lg:p-12">
+    <main className="min-h-dvh bg-slate-50 lg:h-dvh lg:overflow-hidden">
+      <div className="grid min-h-dvh lg:h-dvh lg:grid-cols-[0.9fr_1.1fr]">
+        <section className="relative flex flex-col justify-between overflow-hidden bg-slate-950 p-5 text-white sm:p-6 lg:h-dvh lg:p-10 xl:p-12">
+          <div className="pointer-events-none absolute -right-32 top-1/3 h-80 w-80 rounded-full bg-blue-500/15 blur-3xl" />
           <VentureLogo invert />
-          <div className="max-w-xl py-12">
+          <div className="relative hidden max-w-xl py-6 lg:block">
             <Badge className="border-blue-300 bg-blue-500/15 text-blue-100">
               <ShieldCheck size={13} />
               Role-based authentication
             </Badge>
-            <h1 className="mt-6 text-4xl font-semibold tracking-normal sm:text-5xl">
+            <h1 className="text-balance mt-6 text-4xl font-semibold tracking-[-0.02em] sm:text-5xl lg:text-[2.75rem] xl:text-5xl">
               The professional network for startup fundraising.
             </h1>
             <p className="mt-5 text-base leading-7 text-blue-100">
               Structured discovery, VC readiness, and investor-first communication—all in one platform.
             </p>
           </div>
-          <div className="grid gap-3 text-sm text-blue-100 sm:grid-cols-3">
+          <div className="hidden gap-3 text-sm text-blue-100 sm:grid-cols-3 lg:grid">
             {["No public random chat", "No generic social feed", "Messages after interest"].map((item) => (
-              <div key={item} className="rounded-lg border border-white/10 bg-white/10 p-3">
+              <div key={item} className="rounded-xl border border-white/10 bg-white/10 p-3">
                 {item}
               </div>
             ))}
           </div>
         </section>
 
-        <section className="flex items-center px-4 py-8 sm:px-6 lg:px-12">
-          <div className="mx-auto w-full max-w-3xl">
+        <section className="flex px-4 py-6 sm:px-6 lg:h-dvh lg:overflow-y-auto lg:px-10 lg:py-8 xl:px-12">
+          <div className="mx-auto my-auto w-full max-w-3xl">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <Badge tone={supabaseReady ? "green" : "amber"}>
@@ -177,13 +192,13 @@ export default function AuthPage() {
                 </Badge>
                 <h2 className="mt-4 text-3xl font-semibold">{mode === "signup" ? "Create account" : "Login"}</h2>
               </div>
-              <div className="grid grid-cols-2 rounded-lg border border-slate-200 bg-white p-1">
+              <div className="grid grid-cols-2 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
                 {(["signup", "login"] as AuthMode[]).map((item) => (
                   <button
                     key={item}
                     type="button"
                     onClick={() => setMode(item)}
-                    className={`rounded-md px-4 py-2 text-sm font-semibold capitalize ${mode === item ? "bg-primary text-white" : "text-slate-500"}`}
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold capitalize transition ${mode === item ? "bg-primary text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
                   >
                     {item}
                   </button>
@@ -192,52 +207,53 @@ export default function AuthPage() {
             </div>
 
             {mode === "signup" ? (
-              <div className="mt-6 grid gap-3 md:grid-cols-2">
+              <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-3">
                 {roleCards.map((card) => (
                   <button
                     key={card.role}
                     type="button"
                     onClick={() => setRole(card.role)}
-                    className={`rounded-lg border bg-white p-4 text-left transition ${role === card.role ? "border-blue-300 ring-4 ring-blue-100" : "border-slate-200 hover:border-blue-200"}`}
+                    aria-pressed={role === card.role}
+                    className={`rounded-xl border bg-white p-3 text-left transition duration-200 ${role === card.role ? "border-blue-400 bg-blue-50/50 shadow-sm ring-4 ring-blue-100" : "border-slate-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm"}`}
                   >
                     <div className="flex items-center gap-2 font-semibold">
                       <UserRound size={17} className="text-primary" />
                       {card.title}
                     </div>
-                    <p className="mt-2 text-sm leading-5 text-slate-600">{card.description}</p>
+                    <p className="mt-1.5 text-xs leading-5 text-slate-600">{card.description}</p>
                   </button>
                 ))}
               </div>
             ) : null}
 
-            <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <form onSubmit={handleSubmit} className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.07)] sm:p-6">
               {mode === "signup" ? (
-                <>
+                <div className="grid gap-4 md:grid-cols-2">
                   <label className="block">
                     <span className="text-sm font-semibold text-slate-700">{role === "Service Provider" ? "Name" : "Full name"}</span>
-                    <input value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-primary" placeholder="Nisha Rao" />
+                    <input value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none" placeholder="Nisha Rao" />
                   </label>
-                  <label className="mt-4 block">
+                  <label className="block">
                     <span className="text-sm font-semibold text-slate-700">{companyLabel(role)}</span>
-                    <div className="mt-2 flex items-center gap-2 rounded-lg border border-slate-200 px-3">
+                    <div className="mt-2 flex items-center gap-2 rounded-xl border border-slate-200 px-3 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-blue-100">
                       <Building2 size={16} className="text-slate-400" />
-                      <input value={companyName} onChange={(event) => setCompanyName(event.target.value)} className="h-11 w-full bg-transparent text-sm outline-none" placeholder="Company, firm, fund, or institution" />
+                      <input value={companyName} onChange={(event) => setCompanyName(event.target.value)} autoComplete="organization" className="h-11 w-full bg-transparent text-sm outline-none" placeholder="Company, firm, fund, or institution" />
                     </div>
                   </label>
-                </>
+                </div>
               ) : null}
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="block">
                   <span className="text-sm font-semibold text-slate-700">Email</span>
-                  <div className="mt-2 flex items-center gap-2 rounded-lg border border-slate-200 px-3">
+                  <div className="mt-2 flex items-center gap-2 rounded-xl border border-slate-200 px-3 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-blue-100">
                     <Mail size={16} className="text-slate-400" />
-                    <input value={email} onChange={(event) => setEmail(event.target.value)} className="h-11 w-full bg-transparent text-sm outline-none" placeholder="founder@company.com" />
+                    <input value={email} type="email" required autoComplete="email" onChange={(event) => setEmail(event.target.value)} className="h-11 w-full bg-transparent text-sm outline-none" placeholder="founder@company.com" />
                   </div>
                 </label>
                 <label className="block">
                   <span className="text-sm font-semibold text-slate-700">Password</span>
-                  <input value={password} type="password" onChange={(event) => setPassword(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-primary" placeholder="Minimum 8 characters" />
+                  <input value={password} type="password" required minLength={8} autoComplete={mode === "signup" ? "new-password" : "current-password"} onChange={(event) => setPassword(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none" placeholder="Minimum 8 characters" />
                 </label>
               </div>
 
@@ -285,16 +301,16 @@ export default function AuthPage() {
                 </div>
               ) : null}
 
-              <Button className="mt-5 h-12 w-full" onClick={handleSubmit}>
-                {mode === "signup" ? "Create account" : "Login"}
-                <ArrowRight size={17} />
+              <Button type="submit" disabled={submitting} className="mt-5 h-12 w-full">
+                {submitting ? <LoaderCircle size={17} className="animate-spin" /> : <ArrowRight size={17} />}
+                {submitting ? (mode === "signup" ? "Creating account..." : "Signing in...") : mode === "signup" ? "Create account" : "Login"}
               </Button>
               {mode === "login" && supabaseReady ? (
                 <button type="button" onClick={handlePasswordReset} className="mt-3 text-sm font-semibold text-primary">
                   Forgot password?
                 </button>
               ) : null}
-              <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm leading-6 text-blue-900">{status}</div>
+              <div role="status" aria-live="polite" className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm leading-6 text-blue-900">{status}</div>
               {!supabaseReady ? (
                 <div className="mt-4 flex flex-col gap-1">
                   <Link href={dashboardForRole(role)} className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
@@ -304,7 +320,7 @@ export default function AuthPage() {
                   <p className="text-xs leading-5 text-slate-500">Add Supabase env vars for live authentication.</p>
                 </div>
               ) : null}
-            </div>
+            </form>
           </div>
         </section>
       </div>

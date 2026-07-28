@@ -5,6 +5,7 @@ export type UserRole =
   | "Hackathon Organizer"
   | "Event Organizer"
   | "Service Provider"
+  | "Validator"
   | "Admin";
 
 export type SubscriptionPlan = "Free" | "Student Pro" | "Founder Pro";
@@ -59,10 +60,13 @@ export type VcReportContent = {
   tier: ReportTier;
   reportType: ReportType;
   planRequired: SubscriptionPlan;
+  startupName?: string;
+  summary?: string;
   overallScore: number;
   finalRecommendation?: "Not Ready" | "Needs Validation" | "Incubator Ready" | "Investor Conversation Ready" | "Strong Candidate";
   sections: ReportSection[];
   improvementSuggestions: string[];
+  structuredData?: unknown;
   generatedAt: string;
 };
 
@@ -99,6 +103,8 @@ export type Subscription = {
   report_count_used?: number;
   opportunity_submissions_used?: number;
   free_swot_used?: boolean;
+  report_usage_month?: string;
+  updated_at?: string;
 };
 
 export type Payment = {
@@ -233,7 +239,7 @@ export type DomainTag =
 export type Opportunity = {
   id: string;
   created_by?: string;
-  creator_role: Exclude<UserRole, "Founder" | "Service Provider" | "Admin"> | "Admin";
+  creator_role: Exclude<UserRole, "Founder" | "Service Provider" | "Validator" | "Admin"> | "Admin";
   title: string;
   organizer_name: string;
   organizer_type: string;

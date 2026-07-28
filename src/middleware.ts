@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { dashboardForRole, toDatabaseRole, type DatabaseRole } from "@/lib/auth/roles";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
-type RouteGroup = "founder" | "investor" | "provider" | "admin";
+type RouteGroup = "founder" | "investor" | "provider" | "validator" | "admin";
 
 const founderAliases = [
   "/applications",
@@ -20,6 +20,7 @@ const founderAliases = [
 
 function requiredRouteGroup(pathname: string): RouteGroup | null {
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
+  if (pathname === "/validator" || pathname.startsWith("/validator/")) return "validator";
   if (pathname === "/provider" || pathname.startsWith("/provider/")) return "provider";
   if (pathname === "/investor-dashboard" || pathname === "/investor" || pathname.startsWith("/investor/")) return "investor";
   if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) return "founder";
@@ -31,6 +32,7 @@ function roleCanAccess(role: DatabaseRole, group: RouteGroup) {
   if (group === "founder") return role === "founder";
   if (group === "investor") return ["investor", "incubator", "hackathon_organizer", "event_organizer"].includes(role);
   if (group === "provider") return role === "service_provider";
+  if (group === "validator") return role === "validator";
   return role === "admin";
 }
 
