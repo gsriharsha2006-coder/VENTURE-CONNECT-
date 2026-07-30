@@ -230,8 +230,10 @@ export default function ValidationHubPage() {
         </div>
       ) : (
         <ValidationEmptyState
-          title="No validators match these filters"
-          description="Try widening domain, language, rating, or availability. Venture Connect keeps validator discovery focused rather than turning it into a directory."
+          title={validators.length ? "No validators match these filters" : "No approved validators are currently available"}
+          description={validators.length
+            ? "Try widening domain, language, rating, or availability. Venture Connect keeps validator discovery focused rather than turning it into a directory."
+            : "Profiles will appear after administrator approval. Development fixtures require ENABLE_DEMO_DATA=true."}
           action="Reset filters"
           onAction={() => {
             setQuery("");

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import { validatorMatchesFilters, validators } from "@/lib/data/validations";
 import type { ValidationDomain, ValidationServiceType } from "@/lib/validation/types";
 
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
       validatorMatchesFilters(validator, { query, domain, serviceType, language, minRating, availability })
     ),
     meta: {
-      source: "mock-validation-service",
+      source: isDemoDataEnabled() ? "demo-validation-fixtures" : "database-required",
       publicDirectory: false
     }
   });

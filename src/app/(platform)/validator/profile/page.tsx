@@ -4,26 +4,37 @@ import { CheckCircle2, ShieldCheck, Star } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { ValidationEmptyState } from "@/components/validation/ValidationEmptyState";
 import { ValidatorAvatar } from "@/components/validation/ValidatorAvatar";
 import { validators } from "@/lib/data/validations";
 import { validatorLevelRules } from "@/lib/validation/config";
-
-const validator = validators[0];
+import { getValidatorTrustPresentation } from "@/lib/validation/trust";
 
 export default function ValidatorProfileManagementPage() {
+  const validator = validators[0];
+  if (!validator) {
+    return (
+      <ValidationEmptyState
+        title="No validator profile is available."
+        description="A profile will appear after administrator approval. Development fixtures require ENABLE_DEMO_DATA=true."
+      />
+    );
+  }
+  const trust = getValidatorTrustPresentation(validator);
+
   return (
     <div className="space-y-6">
       <Card className="p-6">
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
           <div className="flex gap-5">
-            <ValidatorAvatar name={validator.name} verified={validator.verified} size="lg" />
+            <ValidatorAvatar name={validator.name} photoUrl={validator.photoUrl} verified={trust.showVerifiedBadge} size="lg" />
             <div>
-              <Badge tone="green">
-                <ShieldCheck size={13} />
-                Verified validator profile
+              <Badge tone={validator.isDemo ? "amber" : "green"}>
+                {trust.showVerifiedBadge ? <ShieldCheck size={13} /> : null}
+                {trust.profileBadge ?? "Verification pending"}
               </Badge>
               <h1 className="mt-3 text-3xl font-semibold text-slate-950">{validator.name}</h1>
-              <p className="mt-2 text-sm text-slate-600">{validator.role} / {validator.institution}</p>
+              <p className="mt-2 text-sm text-slate-600">{validator.role}</p>
             </div>
           </div>
           <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
@@ -52,10 +63,10 @@ export default function ValidatorProfileManagementPage() {
             <CardHeader eyebrow="Profile performance" title="Quality markers" />
             <div className="space-y-4">
               {[
-                ["Rating", Math.round(validator.rating * 20)],
-                ["Completion record", 94],
-                ["Report quality", 91],
-                ["Low dispute rate", 96]
+                ["Rating", 0],
+                ["Completion record", 0],
+                ["Report quality", 0],
+                ["Dispute record", 0]
               ].map(([label, value]) => (
                 <div key={label as string}>
                   <div className="mb-2 flex justify-between text-sm font-semibold text-slate-600">
@@ -79,7 +90,7 @@ export default function ValidatorProfileManagementPage() {
               ))}
               <p className="flex gap-2 text-sm leading-6 text-slate-600">
                 <Star size={16} className="mt-0.5 shrink-0 fill-amber-300 text-amber-500" />
-                {validator.rating} average rating from paid completed validations.
+                Rating evidence is not yet available.
               </p>
             </div>
           </Card>

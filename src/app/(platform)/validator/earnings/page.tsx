@@ -27,7 +27,7 @@ export default function ValidatorEarningsPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <MetricCard label="Projected validator payout" value={`Rs ${projected}`} delta="Demo bookings" />
         <MetricCard label="Platform share" value={`Rs ${platformShare}`} delta="Config-driven" />
-        <MetricCard label="Ready to release" value="Rs 450" delta="Dispute window cleared" />
+        <MetricCard label="Ready to release" value="Rs 0" delta="No eligible production payouts" />
       </div>
 
       <Card>

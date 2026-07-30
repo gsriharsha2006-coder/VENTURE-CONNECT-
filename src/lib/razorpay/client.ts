@@ -36,14 +36,20 @@ export function verifyPaymentSignature(
     .createHmac("sha256", keySecret)
     .update(`${orderId}|${paymentId}`)
     .digest("hex");
-  return expected === signature;
+  return signaturesMatch(expected, signature);
 }
 
 export function verifyWebhookSignature(body: string, signature: string): boolean {
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
   if (!webhookSecret) return false;
   const expected = crypto.createHmac("sha256", webhookSecret).update(body).digest("hex");
-  return expected === signature;
+  return signaturesMatch(expected, signature);
+}
+
+function signaturesMatch(expected: string, received: string): boolean {
+  const expectedBuffer = Buffer.from(expected, "utf8");
+  const receivedBuffer = Buffer.from(received, "utf8");
+  return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
 }
 
 export async function createRazorpayCustomer(email: string, name: string) {

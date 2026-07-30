@@ -223,16 +223,32 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader eyebrow="Validation" title="Upcoming human review" />
-            <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
-                <CalendarCheck2 size={16} />
-                {upcomingValidation.workspace.startupName}
+            {upcomingValidation ? (
+              <>
+                <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+                    <CalendarCheck2 size={16} />
+                    {upcomingValidation.workspace.startupName}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-blue-800">{upcomingValidation.status} / {upcomingValidation.serviceType}</p>
+                </div>
+                <Link href={`/dashboard/validation-hub/workspace/${upcomingValidation.id}`}>
+                  <Button variant="secondary" className="mt-4 w-full">
+                    Open validation workspace
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-slate-900">No validation booked</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Approved validator profiles will appear when production records are available.
+                </p>
               </div>
-              <p className="mt-2 text-sm leading-6 text-blue-800">{upcomingValidation.status} / {upcomingValidation.serviceType}</p>
-            </div>
-            <Link href={`/dashboard/validation-hub/workspace/${upcomingValidation.id}`}>
+            )}
+            <Link href="/dashboard/validation-hub">
               <Button variant="secondary" className="mt-4 w-full">
-                Open validation workspace
+                Open Validation Hub
               </Button>
             </Link>
           </Card>

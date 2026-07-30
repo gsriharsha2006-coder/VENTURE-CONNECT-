@@ -68,15 +68,24 @@ export type ValidatorProfile = {
   name: string;
   photoUrl?: string;
   role: string;
-  institution: string;
+  /** @deprecated Use organisationAffiliation with affiliationVerified. */
+  institution?: string;
+  organisationAffiliation?: string;
+  affiliationVerified: boolean;
   location: string;
   languages: string[];
   expertise: ValidationDomain[];
+  /** @deprecated Use averageRating when verified evidence exists. */
   rating: number;
+  averageRating?: number;
+  reviewCount: number;
   completedValidations: number;
   responseTime: string;
   nextAvailable: string;
+  /** @deprecated Use isVerified. */
   verified: boolean;
+  isVerified: boolean;
+  isDemo: boolean;
   level: ValidatorLevel;
   shortBio: string;
   bio: string;
@@ -185,6 +194,7 @@ export type ValidatorReview = {
   punctuality: number;
   writtenReview: string;
   verifiedBooking: boolean;
+  isDemo?: boolean;
 };
 
 export type ValidationActivity = {

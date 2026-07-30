@@ -1,6 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { createNotification } from "@/lib/notifications/service";
-import type { Profile } from "@/lib/types";
+export { canSendMessage } from "@/lib/messaging/permissions";
 
 export async function createConversationFromInterest(submissionId: string, investorId: string) {
   const supabase = createServiceClient();
@@ -91,10 +91,4 @@ export async function assertConversationParticipant(conversationId: string, user
     throw new Error("Unauthorized");
   }
   return data;
-}
-
-export function canSendMessage(profile: Profile, conversation: { founder_id: string; investor_id: string }, senderId: string): boolean {
-  if (senderId === conversation.investor_id && profile.role === "Investor") return true;
-  if (senderId === conversation.founder_id && profile.role === "Founder") return true;
-  return false;
 }

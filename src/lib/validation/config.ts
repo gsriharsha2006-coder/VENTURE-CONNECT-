@@ -97,10 +97,10 @@ export const validatorLevelRules: Record<ValidatorLevel, {
 };
 
 export const validationTrustMetrics = [
-  { label: "Verified validators", value: "128", note: "Demo data" },
-  { label: "Completed validations", value: "2,840", note: "Demo data" },
-  { label: "Average response time", value: "18h", note: "Demo data" },
-  { label: "Founder satisfaction", value: "4.8/5", note: "Demo data" }
+  { label: "Approved validators", value: "0", note: "No production records" },
+  { label: "Completed validations", value: "0", note: "No production records" },
+  { label: "Founder reviews", value: "0", note: "No production records" },
+  { label: "Published reports", value: "0", note: "No production records" }
 ];
 
 export const validationStatusOrder = [

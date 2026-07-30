@@ -1,4 +1,5 @@
 import { ideaWorkspaces } from "@/lib/data";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import { completionPercent, getTemplateDef } from "@/lib/templates";
 import { validationServices } from "@/lib/validation/config";
 import type {
@@ -28,98 +29,117 @@ function workspaceRef(index: number, version = 1, majorChangesSinceBadge = false
   };
 }
 
-export const validators: ValidatorProfile[] = [
+export const demoValidators: ValidatorProfile[] = [
   {
     id: "validator-priya-menon",
-    name: "Dr. Priya Menon",
-    role: "R&D Faculty and Innovation Cell Reviewer",
-    institution: "NIT Calicut Incubation Centre",
-    location: "Kozhikode, Kerala",
-    languages: ["English", "Hindi", "Malayalam"],
+    name: "Demo Reviewer - AI and HealthTech",
+    photoUrl: "/images/validators/priya-menon.webp",
+    role: "Synthetic startup document reviewer",
+    affiliationVerified: false,
+    location: "India",
+    languages: ["English", "Hindi"],
     expertise: ["AI and Machine Learning", "HealthTech", "Product Development", "Business Strategy"],
-    rating: 4.9,
-    completedValidations: 42,
-    responseTime: "16h",
-    nextAvailable: "Tomorrow, 5:30 PM",
-    verified: true,
-    level: "Institutional Expert",
-    shortBio: "Reviews AI and HealthTech ideas with a focus on evidence, feasibility, and incubation readiness.",
-    bio: "Priya works with student founders moving from technical prototypes to incubation-ready documents. She has reviewed healthcare AI pilots, advised R&D grant proposals, and supported student teams through proof-of-concept validation.",
-    qualifications: ["PhD in Computer Science", "Faculty coordinator, innovation and entrepreneurship cell", "AI ethics and applied ML research lead"],
-    industryExperience: ["Reviewed 80+ student innovation proposals", "Advised three hospital workflow pilots", "Mentored SIH and AICTE cohort teams"],
-    incubationActivities: ["Grant-screening committee member", "Institutional IP and prototype review mentor", "Customer discovery workshop facilitator"],
-    mentoringExperience: "Completed paid founder validations across AI, HealthTech, and student research commercialization.",
+    rating: 0,
+    reviewCount: 0,
+    completedValidations: 0,
+    responseTime: "Sample availability",
+    nextAvailable: "Sample slot",
+    verified: false,
+    isVerified: false,
+    isDemo: true,
+    level: "New Validator",
+    shortBio: "Synthetic profile used to demonstrate the validation workflow.",
+    bio: "This profile is demonstration data. It does not represent a real person, endorsement, qualification, organisation, or validation history.",
+    qualifications: [],
+    industryExperience: [],
+    incubationActivities: [],
+    mentoringExperience: "Sample validation workflow only.",
     serviceTypes: ["Written Idea Review", "Live Validation Session", "Expert Validation"]
   },
   {
     id: "validator-arjun-balan",
-    name: "Arjun Balan",
-    role: "Incubation Cell Program Manager",
-    institution: "Coimbatore Startup Hub",
-    location: "Coimbatore, Tamil Nadu",
+    name: "Demo Reviewer - SaaS",
+    role: "Synthetic startup document reviewer",
+    affiliationVerified: false,
+    location: "India",
     languages: ["English", "Tamil", "Hindi"],
     expertise: ["SaaS", "Business Strategy", "Marketing", "Finance", "Consumer Products"],
-    rating: 4.7,
-    completedValidations: 27,
-    responseTime: "22h",
-    nextAvailable: "Jul 30, 4:00 PM",
-    verified: true,
-    level: "Partner Validator",
-    shortBio: "Helps early founders make their application documents clearer for incubators and grants.",
-    bio: "Arjun runs founder intake for an incubation cell and specializes in turning rough student ideas into structured documents with clear problem, customer, market, and business model evidence.",
-    qualifications: ["MBA in Entrepreneurship", "Incubation program operations lead", "Startup India grant screening experience"],
-    industryExperience: ["Screened 500+ founder applications", "Supported SaaS and consumer founders in early GTM", "Designed application rubrics for student cohorts"],
-    incubationActivities: ["Incubator application office hours", "Pitch day preparation", "Grant application readiness checks"],
-    mentoringExperience: "Known for practical, plain-language feedback for first-time founders.",
+    rating: 0,
+    reviewCount: 0,
+    completedValidations: 0,
+    responseTime: "Sample availability",
+    nextAvailable: "Sample slot",
+    verified: false,
+    isVerified: false,
+    isDemo: true,
+    level: "New Validator",
+    shortBio: "Synthetic profile used to demonstrate the validation workflow.",
+    bio: "This profile is demonstration data and does not represent a real person or professional history.",
+    qualifications: [],
+    industryExperience: [],
+    incubationActivities: [],
+    mentoringExperience: "Sample validation workflow only.",
     serviceTypes: ["Written Idea Review", "Live Validation Session"]
   },
   {
     id: "validator-farah-khan",
-    name: "Farah Khan",
-    role: "Founder and Product Strategy Mentor",
-    institution: "Formerly at GrowthLoop AI",
-    location: "Bengaluru, Karnataka",
+    name: "Demo Reviewer - Product Strategy",
+    role: "Synthetic startup document reviewer",
+    affiliationVerified: false,
+    location: "India",
     languages: ["English", "Hindi", "Kannada"],
     expertise: ["Product Development", "SaaS", "Marketing", "Business Strategy"],
-    rating: 4.8,
-    completedValidations: 18,
-    responseTime: "12h",
-    nextAvailable: "Today, 7:00 PM",
-    verified: true,
-    level: "Verified Validator",
-    shortBio: "Strong fit for SaaS, GTM, and product-positioning reviews before accelerator applications.",
-    bio: "Farah has built and scaled B2B SaaS workflows and now supports student founders with product narratives, early customer evidence, and practical roadmap sequencing.",
-    qualifications: ["Ex-product lead at GrowthLoop AI", "Built two SaaS products from zero to revenue", "Mentor at college accelerator programs"],
-    industryExperience: ["B2B SaaS pricing and onboarding", "Customer discovery and activation loops", "Pitch narrative and product strategy"],
-    incubationActivities: ["Mentor for college SaaS cohorts", "Demo day reviewer", "Startup application reviewer"],
-    mentoringExperience: "Focuses on clarity, scope control, and experiments founders can run within 30 days.",
+    rating: 0,
+    reviewCount: 0,
+    completedValidations: 0,
+    responseTime: "Sample availability",
+    nextAvailable: "Sample slot",
+    verified: false,
+    isVerified: false,
+    isDemo: true,
+    level: "New Validator",
+    shortBio: "Synthetic profile used to demonstrate the validation workflow.",
+    bio: "This profile is demonstration data and does not represent a real person or professional history.",
+    qualifications: [],
+    industryExperience: [],
+    incubationActivities: [],
+    mentoringExperience: "Sample validation workflow only.",
     serviceTypes: ["Written Idea Review", "Live Validation Session", "Expert Validation"]
   },
   {
     id: "validator-meera-iyer",
-    name: "Meera Iyer",
-    role: "Industry Expert, Rural Innovation",
-    institution: "AgriBridge Labs",
-    location: "Pune, Maharashtra",
+    name: "Demo Reviewer - Rural Innovation",
+    role: "Synthetic startup document reviewer",
+    affiliationVerified: false,
+    location: "India",
     languages: ["English", "Hindi", "Marathi"],
     expertise: ["Agriculture", "Sustainability", "Electronics and Hardware", "Finance"],
-    rating: 4.6,
-    completedValidations: 9,
-    responseTime: "1 day",
-    nextAvailable: "Aug 1, 6:00 PM",
-    verified: true,
-    level: "Verified Validator",
-    shortBio: "Reviews hardware, agriculture, and sustainability ideas with field feasibility in mind.",
-    bio: "Meera supports early teams testing field-ready products, agricultural workflows, and sustainability pilots. Her feedback emphasizes evidence, distribution, and operational practicality.",
-    qualifications: ["M.Tech in Embedded Systems", "Rural innovation program advisor", "Hardware pilot evaluator"],
-    industryExperience: ["AgriTech pilot deployments", "Hardware prototyping", "Grant diligence for field experiments"],
-    incubationActivities: ["Rural innovation bootcamps", "Prototype review panels", "Field pilot planning"],
-    mentoringExperience: "Works best with founders who need a grounded validation plan before applying to grants.",
+    rating: 0,
+    reviewCount: 0,
+    completedValidations: 0,
+    responseTime: "Sample availability",
+    nextAvailable: "Sample slot",
+    verified: false,
+    isVerified: false,
+    isDemo: true,
+    level: "New Validator",
+    shortBio: "Synthetic profile used to demonstrate the validation workflow.",
+    bio: "This profile is demonstration data and does not represent a real person or professional history.",
+    qualifications: [],
+    industryExperience: [],
+    incubationActivities: [],
+    mentoringExperience: "Sample validation workflow only.",
     serviceTypes: ["Written Idea Review", "Expert Validation"]
   }
 ];
 
-export const validationBookings: ValidationBooking[] = [
+export function getValidatorDirectory(demoEnabled = isDemoDataEnabled()): ValidatorProfile[] {
+  return demoEnabled ? demoValidators : [];
+}
+
+export const validators = getValidatorDirectory();
+
+export const validationBookings: ValidationBooking[] = isDemoDataEnabled() ? [
   {
     id: "validation-booking-1",
     founderId: "founder-1",
@@ -200,7 +220,7 @@ export const validationBookings: ValidationBooking[] = [
     nextAction: "Validator must accept before confidential document access opens.",
     accepted: false
   }
-];
+] : [];
 
 const reportScores: ValidationScore[] = [
   { dimension: "Problem Clarity", score: 88, justification: "The hospital documentation pain is specific, repeated, and tied to measurable shift-level delays." },
@@ -215,7 +235,7 @@ const reportScores: ValidationScore[] = [
   { dimension: "Investor Application Readiness", score: 83, justification: "Ready for selective incubator and pre-seed office-hour applications after the listed improvements." }
 ];
 
-export const validationReports: ValidationReport[] = [
+export const validationReports: ValidationReport[] = isDemoDataEnabled() ? [
   {
     id: "validation-report-1",
     bookingId: "validation-booking-1",
@@ -237,9 +257,9 @@ export const validationReports: ValidationReport[] = [
     approvedForBadge: true,
     badgeRecommendation: ["Human Reviewed", "Technical Feasibility Reviewed", "Investor Application Ready"]
   }
-];
+] : [];
 
-export const validationBadges: ValidationBadge[] = [
+export const validationBadges: ValidationBadge[] = isDemoDataEnabled() ? [
   {
     id: "validation-badge-1",
     name: "Human Reviewed",
@@ -266,9 +286,9 @@ export const validationBadges: ValidationBadge[] = [
     verificationId: "VC-TF-2026-00091",
     summaryVisibleToInvestors: "Technical feasibility was reviewed against current pilot evidence and implementation scope."
   }
-];
+] : [];
 
-export const validatorReviews: ValidatorReview[] = [
+export const validatorReviews: ValidatorReview[] = isDemoDataEnabled() ? [
   {
     id: "validator-review-1",
     validatorId: "validator-priya-menon",
@@ -280,7 +300,8 @@ export const validatorReviews: ValidatorReview[] = [
     reportQuality: 5,
     punctuality: 4,
     writtenReview: "The report was specific and helped us fix investor-facing gaps without exposing confidential idea details.",
-    verifiedBooking: true
+    verifiedBooking: false,
+    isDemo: true
   },
   {
     id: "validator-review-2",
@@ -293,11 +314,12 @@ export const validatorReviews: ValidatorReview[] = [
     reportQuality: 4,
     punctuality: 5,
     writtenReview: "Clear feedback on what an incubator reviewer would expect. No private business details are shared here.",
-    verifiedBooking: true
+    verifiedBooking: false,
+    isDemo: true
   }
-];
+] : [];
 
-export const validationActivity: ValidationActivity[] = [
+export const validationActivity: ValidationActivity[] = isDemoDataEnabled() ? [
   { id: "activity-1", bookingId: "validation-booking-1", label: "Booking created", timestamp: "Jul 18, 2026", complete: true },
   { id: "activity-2", bookingId: "validation-booking-1", label: "Payment completed", timestamp: "Jul 18, 2026", complete: true },
   { id: "activity-3", bookingId: "validation-booking-1", label: "Validator accepted", timestamp: "Jul 19, 2026", complete: true },
@@ -311,7 +333,7 @@ export const validationActivity: ValidationActivity[] = [
   { id: "activity-11", bookingId: "validation-booking-2", label: "Payment completed", timestamp: "Jul 26, 2026", complete: true },
   { id: "activity-12", bookingId: "validation-booking-2", label: "Validator accepted", timestamp: "Jul 27, 2026", complete: true },
   { id: "activity-13", bookingId: "validation-booking-2", label: "Session scheduled", timestamp: "Aug 1, 2026", complete: false }
-];
+] : [];
 
 export function getValidatorById(id: string) {
   return validators.find((validator) => validator.id === id);
@@ -326,7 +348,7 @@ export function getReportByBookingId(bookingId: string) {
 }
 
 export function getReviewsForValidator(validatorId: string) {
-  return validatorReviews.filter((review) => review.validatorId === validatorId && review.verifiedBooking);
+  return validatorReviews.filter((review) => review.validatorId === validatorId);
 }
 
 export function getActivityForBooking(bookingId: string) {
@@ -350,7 +372,7 @@ export function validatorMatchesFilters(validator: ValidatorProfile, filters: {
   availability: string;
 }) {
   const query = filters.query.trim().toLowerCase();
-  const haystack = `${validator.name} ${validator.role} ${validator.institution} ${validator.expertise.join(" ")}`.toLowerCase();
+  const haystack = `${validator.name} ${validator.role} ${validator.organisationAffiliation ?? ""} ${validator.expertise.join(" ")}`.toLowerCase();
   return (
     (!query || haystack.includes(query)) &&
     (filters.domain === "All" || validator.expertise.includes(filters.domain)) &&

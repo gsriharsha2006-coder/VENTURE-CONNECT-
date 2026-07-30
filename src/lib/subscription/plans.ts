@@ -22,7 +22,7 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
     premiumReportsPerMonth: 3,
     messaging: true,
     allTemplates: true,
-    workspacesLimit: "unlimited",
+    workspacesLimit: 10,
     opportunitySubmissionsPerMonth: 10,
     reportTypes: ["Premium SWOT Analysis", "Full Brief Report", "Bottleneck Report", "Competitor Defensive Report"]
   },
@@ -30,7 +30,7 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
     premiumReportsPerMonth: 5,
     messaging: true,
     allTemplates: true,
-    workspacesLimit: "unlimited",
+    workspacesLimit: 25,
     opportunitySubmissionsPerMonth: 30,
     reportTypes: [
       "Premium SWOT Analysis",
@@ -53,9 +53,9 @@ export const PRICING_TIERS = [
     name: "Student Pro" as const,
     price: "Rs 149/month",
     priceAmount: 14900,
-    description: "Unlimited Idea Workspaces, all templates, 10 submissions, 3 premium reports, and gated messaging.",
+    description: "Up to 10 Idea Workspaces, all templates, 10 submissions, 3 premium reports, and gated messaging.",
     features: [
-      "Unlimited Idea Workspaces",
+      "Up to 10 Idea Workspaces",
       "All document templates",
       "10 opportunity submissions per month",
       "3 premium VC Readiness Reports per month",
@@ -72,6 +72,7 @@ export const PRICING_TIERS = [
     description: "More submissions, 5 premium reports, priority generation, premium badge, and advanced reports.",
     features: [
       "Everything in Student Pro",
+      "Up to 25 Idea Workspaces",
       "30 opportunity submissions per month",
       "5 premium reports per month",
       "Priority report generation",

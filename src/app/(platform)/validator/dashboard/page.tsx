@@ -7,15 +7,24 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ValidationEmptyState } from "@/components/validation/ValidationEmptyState";
 import { ValidationStatusBadge } from "@/components/validation/ValidationStatusBadge";
 import { validationBookings, validationReports, validators } from "@/lib/data/validations";
 import { validationServices } from "@/lib/validation/config";
 
-const activeValidator = validators[0];
-const assignedBookings = validationBookings.filter((booking) => booking.validatorId === activeValidator.id);
-const reportDue = validationBookings.filter((booking) => booking.accepted && booking.status !== "Validation Completed");
-
 export default function ValidatorDashboardPage() {
+  const activeValidator = validators[0];
+  if (!activeValidator) {
+    return (
+      <ValidationEmptyState
+        title="No validator profile is available."
+        description="A profile will appear after administrator approval. Development fixtures require ENABLE_DEMO_DATA=true."
+      />
+    );
+  }
+
+  const assignedBookings = validationBookings.filter((booking) => booking.validatorId === activeValidator.id);
+  const reportDue = validationBookings.filter((booking) => booking.accepted && booking.status !== "Validation Completed");
   const earnings = assignedBookings.reduce((sum, booking) => sum + validationServices[booking.serviceType].validatorPayout, 0);
 
   return (
@@ -89,11 +98,11 @@ export default function ValidatorDashboardPage() {
           </Card>
 
           <Card>
-            <CardHeader eyebrow="Profile performance" title={activeValidator.level} />
+            <CardHeader eyebrow={activeValidator.isDemo ? "Demo profile" : "Profile performance"} title={activeValidator.level} />
             <div className="space-y-3 text-sm text-slate-600">
-              <p className="flex items-center gap-2"><Star size={16} className="fill-amber-300 text-amber-500" />Rating {activeValidator.rating}</p>
-              <p className="flex items-center gap-2"><ClipboardCheck size={16} className="text-primary" />{activeValidator.completedValidations} completed validations</p>
-              <p className="flex items-center gap-2"><RefreshCw size={16} className="text-primary" />Low dispute rate demo status</p>
+              <p className="flex items-center gap-2"><Star size={16} className="text-slate-400" />Rating not yet available</p>
+              <p className="flex items-center gap-2"><ClipboardCheck size={16} className="text-primary" />No verified validation history</p>
+              <p className="flex items-center gap-2"><RefreshCw size={16} className="text-primary" />Sample workflow status</p>
             </div>
             <Link href="/validator/profile">
               <Button variant="secondary" className="mt-5 w-full">Improve profile</Button>

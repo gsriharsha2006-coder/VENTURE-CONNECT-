@@ -5,11 +5,20 @@ import { FileText, MessageSquare, Paperclip } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
+import { ValidationEmptyState } from "@/components/validation/ValidationEmptyState";
 import { validationBookings } from "@/lib/data/validations";
 
 export default function ValidatorMessagesPage() {
-  const [selectedId, setSelectedId] = useState(validationBookings[0].id);
+  const [selectedId, setSelectedId] = useState(validationBookings[0]?.id ?? "");
   const selected = validationBookings.find((booking) => booking.id === selectedId) ?? validationBookings[0];
+  if (!selected) {
+    return (
+      <ValidationEmptyState
+        title="No validation conversations yet"
+        description="Messages appear only after an approved validator receives an eligible booking."
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">

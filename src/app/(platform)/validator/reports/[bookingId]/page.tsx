@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { AlertTriangle, CheckCircle2, FileCheck2, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { StatusMessage } from "@/components/ui/FeedbackState";
 import { ValidationEmptyState } from "@/components/validation/ValidationEmptyState";
 import { ValidationReportView } from "@/components/validation/ValidationReportView";
 import { getBadgesForWorkspace, getBookingById, getReportByBookingId } from "@/lib/data/validations";
@@ -58,6 +60,12 @@ export default function ReportBuilderPage() {
       conclusion.trim().length >= 30,
     [concerns, conclusion, experiments, improvements, scores, strengths]
   );
+  const completionValue = useMemo(() => {
+    const scoreSections = scores.filter((score) => score.justification.trim().length >= 12).length;
+    const narratives = [strengths, concerns, improvements, experiments, conclusion];
+    const narrativeSections = narratives.filter((item, index) => item.trim().length >= (index === 4 ? 30 : 20)).length;
+    return Math.round(((scoreSections + narrativeSections) / (scores.length + narratives.length)) * 100);
+  }, [concerns, conclusion, experiments, improvements, scores, strengths]);
 
   if (!booking) {
     return <ValidationEmptyState title="Booking not found" description="The selected booking is unavailable." />;
@@ -82,22 +90,31 @@ export default function ReportBuilderPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <Badge>
-          <FileCheck2 size={13} />
-          Report Builder
-        </Badge>
-        <h1 className="mt-3 text-3xl font-semibold text-slate-950">{booking.workspace.startupName}</h1>
-        <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">
-          Complete each report section with separate score justifications. Badge recommendation stays locked until mandatory sections are complete.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Structured Validation Report"
+        title={booking.workspace.startupName}
+        description="Complete each dimension with a written justification, then document strengths, concerns, required improvements, experiments, and the final readiness conclusion."
+        actions={<Badge tone={mandatoryComplete ? "green" : "amber"}>{completionValue}% complete</Badge>}
+      />
 
       {submitted ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+        <StatusMessage tone="success">
           Prototype report submitted. In production this would persist to Supabase, notify the founder, and start the dispute window.
-        </div>
+        </StatusMessage>
       ) : null}
+
+      <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-3">
+        {[
+          ["Service", booking.serviceType],
+          ["Document", `Idea Workspace v${booking.workspace.version}`],
+          ["Delivery deadline", booking.deliveryDeadline]
+        ].map(([label, value]) => (
+          <div key={label} className="bg-white p-4">
+            <p className="text-xs font-semibold text-slate-500">{label}</p>
+            <p className="mt-2 text-sm font-semibold text-slate-950">{value}</p>
+          </div>
+        ))}
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <div className="space-y-4">
@@ -105,7 +122,7 @@ export default function ReportBuilderPage() {
             <CardHeader eyebrow="Numeric scores" title="Dimension-based validation" />
             <div className="grid gap-4 md:grid-cols-2">
               {scores.map((score, index) => (
-                <div key={score.dimension} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div key={score.dimension} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <div className="flex items-center justify-between gap-3 text-sm font-semibold">
                     <span>{score.dimension}</span>
                     <span>{score.score}/100</span>
@@ -123,7 +140,7 @@ export default function ReportBuilderPage() {
                     value={score.justification}
                     onChange={(event) => updateScore(index, { justification: event.target.value })}
                     rows={3}
-                    className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                    className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
                     placeholder="Written justification required..."
                   />
                 </div>
@@ -146,7 +163,7 @@ export default function ReportBuilderPage() {
                     value={value}
                     onChange={(event) => setter(event.target.value)}
                     rows={5}
-                    className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
+                    className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none"
                     placeholder="Use one point per line..."
                   />
                 </label>
@@ -157,7 +174,7 @@ export default function ReportBuilderPage() {
                   value={conclusion}
                   onChange={(event) => setConclusion(event.target.value)}
                   rows={5}
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
+                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none"
                   placeholder="Final readiness conclusion..."
                 />
               </label>
@@ -167,20 +184,28 @@ export default function ReportBuilderPage() {
 
         <aside className="space-y-4">
           <Card>
-            <CardHeader eyebrow="Badge recommendation" title="Locked until complete" />
+            <CardHeader eyebrow="Report completion" title="Required sections" />
+            <div className="mb-5">
+              <div className="mb-2 flex justify-between text-xs font-semibold text-slate-600">
+                <span>Report progress</span>
+                <span>{completionValue}%</span>
+              </div>
+              <ProgressBar value={completionValue} />
+            </div>
             {!mandatoryComplete ? (
-              <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+              <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
                 <AlertTriangle size={18} className="mt-0.5 shrink-0" />
                 Complete every score justification and required written section before recommending a badge.
               </div>
             ) : (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">
                 Mandatory sections complete. Badge recommendation is enabled, but admin rules still apply.
               </div>
             )}
+            <p className="mt-5 text-sm font-semibold text-slate-950">Badge recommendation</p>
             <div className="mt-4 space-y-2">
               {badgeOptions.map((badge) => (
-                <label key={badge} className={`flex items-center gap-2 rounded-xl border p-3 text-sm font-semibold ${mandatoryComplete ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50 text-slate-400"}`}>
+                <label key={badge} className={`flex items-center gap-2 rounded-lg border p-3 text-sm font-semibold ${mandatoryComplete ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50 text-slate-400"}`}>
                   <input
                     type="checkbox"
                     disabled={!mandatoryComplete}
