@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { validationReports } from "@/lib/data/validations";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import type { ValidationScore } from "@/lib/validation/types";
 
 function hasMandatoryScores(scores: unknown): scores is ValidationScore[] {
@@ -26,6 +27,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!isDemoDataEnabled()) {
+    return NextResponse.json({ error: "Validation report submission requires an authenticated backend." }, { status: 503 });
+  }
   const body = await request.json() as {
     bookingId?: string;
     scores?: unknown;

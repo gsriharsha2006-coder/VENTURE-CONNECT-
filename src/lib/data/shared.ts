@@ -12,6 +12,10 @@ export function supabaseDataError(context: string, error: unknown) {
   return new Error(`[Supabase development error] ${context}: ${errorMessage(error)}`);
 }
 
+export function backendUnavailableError(context: string) {
+  return new Error(`${context} is unavailable because account services are not configured.`);
+}
+
 export function getBrowserSupabase() {
   if (!isSupabaseConfigured()) return null;
   if (typeof window === "undefined") {

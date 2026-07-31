@@ -2,16 +2,16 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Venture Connect | VC Readiness Platform",
+  title: "Venture Connect | Startup preparation workspace",
   description:
-    "Structured startup discovery, VC readiness, and investor-first communication for founders and ecosystem partners.",
-  metadataBase: new URL("https://venture-connect.local"),
+    "Structure startup ideas, validate assumptions, prepare applications, and discover relevant programmes.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
   icons: {
     icon: "/icon.svg"
   },
   openGraph: {
     title: "Venture Connect",
-    description: "Discover, build, connect, and fund startup opportunities with VC-grade readiness reports.",
+    description: "From an early idea to an opportunity-ready startup.",
     type: "website"
   }
 };

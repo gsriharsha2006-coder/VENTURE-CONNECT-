@@ -1,11 +1,12 @@
 import { applications as mockApplications } from "@/lib/data";
-import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
+import { backendUnavailableError, getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import type { Application, ApplicationMethod } from "@/lib/types";
 
 export async function getApplications(): Promise<Application[]> {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("list applications");
-  if (!supabase || !userId) return mockApplications;
+  if (!supabase || !userId) return isDemoDataEnabled() ? mockApplications : [];
 
   const { data, error } = await supabase
     .from("applications")
@@ -48,6 +49,7 @@ export async function applyToOpportunity(input: {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("create application");
   if (!supabase || !userId) {
+    if (!isDemoDataEnabled()) throw backendUnavailableError("Application submission");
     return {
       id: `application-${Date.now()}`,
       mode: "mock-fallback" as const,

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, KeyRound } from "lucide-react";
 import { AuthFrame } from "@/components/auth/AuthFrame";
+import { PasswordField } from "@/components/auth/PasswordField";
 import { Button } from "@/components/ui/Button";
 import { StatusMessage } from "@/components/ui/FeedbackState";
 import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase";
@@ -16,7 +17,7 @@ export default function UpdatePasswordPage() {
 
   async function updatePassword() {
     if (!isSupabaseConfigured()) {
-      setStatus("Supabase is not configured. Password recovery is available only in live authentication mode.");
+      setStatus("Password recovery is unavailable because account services are not configured.");
       return;
     }
     if (password.length < 8) {
@@ -51,17 +52,13 @@ export default function UpdatePasswordPage() {
         <div className="inline-flex rounded-lg bg-blue-50 p-3 text-primary">
           <KeyRound size={22} />
         </div>
-        <p className="mt-4 text-sm leading-6 text-slate-600">Your recovery session is stored in secure Supabase authentication cookies.</p>
+        <p className="mt-4 text-sm leading-6 text-slate-600">Open this page from the time-limited link sent to your account email.</p>
 
-        <label className="mt-6 block">
-          <span className="text-sm font-semibold text-slate-700">New password</span>
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-primary" />
-        </label>
-        <label className="mt-4 block">
-          <span className="text-sm font-semibold text-slate-700">Confirm password</span>
-          <input type="password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-primary" />
-        </label>
-        <Button className="mt-5 w-full" onClick={updatePassword} disabled={saving}>
+        <div className="mt-6 space-y-4">
+          <PasswordField id="new-password" label="New password" value={password} onChange={setPassword} autoComplete="new-password" />
+          <PasswordField id="confirm-password" label="Confirm password" value={confirmation} onChange={setConfirmation} autoComplete="new-password" error={confirmation && password !== confirmation ? "Passwords do not match." : undefined} />
+        </div>
+        <Button className="mt-5 w-full" onClick={updatePassword} disabled={saving || !isSupabaseConfigured()}>
           {saving ? "Updating..." : "Update password"}
         </Button>
         <StatusMessage className="mt-4">{status}</StatusMessage>

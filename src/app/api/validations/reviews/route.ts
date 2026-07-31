@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { validationBookings, validatorReviews } from "@/lib/data/validations";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 
 export async function GET() {
   return NextResponse.json({
@@ -12,6 +13,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!isDemoDataEnabled()) {
+    return NextResponse.json({ error: "Validator review submission requires an authenticated backend." }, { status: 503 });
+  }
   const body = await request.json() as {
     bookingId?: string;
     rating?: number;

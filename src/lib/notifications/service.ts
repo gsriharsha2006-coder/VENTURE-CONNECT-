@@ -11,15 +11,7 @@ export async function createNotification(params: {
 }) {
   const supabase = createServiceClient();
   if (!supabase) {
-    return {
-      id: `notification-${Date.now()}`,
-      profile_id: params.profileId,
-      type: params.type,
-      title: params.title,
-      body: params.body,
-      metadata: params.metadata ?? {},
-      mode: "mock-fallback"
-    };
+    throw new Error("Notification delivery is unavailable because server data services are not configured.");
   }
   const { data: profile, error: profileError } = await supabase
     .from("profiles")

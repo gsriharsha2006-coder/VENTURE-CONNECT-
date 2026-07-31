@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { investors } from "@/lib/data";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import type { SubscriptionPlan } from "@/lib/types";
 
 const limits: Record<SubscriptionPlan, number> = {
@@ -9,6 +10,9 @@ const limits: Record<SubscriptionPlan, number> = {
 };
 
 export async function POST(request: Request) {
+  if (!isDemoDataEnabled()) {
+    return NextResponse.json({ error: "Pitch submission requires an authenticated backend." }, { status: 503 });
+  }
   const body = (await request.json()) as {
     plan?: SubscriptionPlan;
     pitchesUsed?: number;

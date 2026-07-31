@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, LoaderCircle, LockKeyhole, Mail } from "lucide-react";
+import { ArrowRight, LoaderCircle, Mail } from "lucide-react";
 import { AuthFrame } from "@/components/auth/AuthFrame";
+import { PasswordField } from "@/components/auth/PasswordField";
 import { Button } from "@/components/ui/Button";
 import { StatusMessage } from "@/components/ui/FeedbackState";
-import { authRedirectTo, isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { dashboardForRole } from "@/lib/auth/roles";
 
 type StatusTone = "info" | "success" | "error";
@@ -19,7 +20,7 @@ export default function SignInPage() {
   const [status, setStatus] = useState(
     supabaseReady
       ? "Use the email and password connected to your Venture Connect account."
-      : "Prototype authentication is active. Use the demo link below to inspect the founder workflow."
+      : "Account services are not available in this environment. Public product pages remain accessible."
   );
   const [statusTone, setStatusTone] = useState<StatusTone>("info");
 
@@ -50,7 +51,8 @@ export default function SignInPage() {
     setStatusTone("info");
     try {
       if (!supabase) {
-        setStatus("Live authentication is not configured in this environment. Continue with the founder demo below.");
+        setStatus("Sign-in is unavailable because account services have not been configured.");
+        setStatusTone("error");
         return;
       }
 
@@ -69,24 +71,6 @@ export default function SignInPage() {
     }
   }
 
-  async function handlePasswordReset() {
-    if (!email) {
-      setStatus("Enter your email address before requesting a password reset.");
-      setStatusTone("error");
-      return;
-    }
-    if (!supabase) {
-      setStatus("Password recovery is available when Supabase authentication is configured.");
-      setStatusTone("info");
-      return;
-    }
-
-    const recoveryRedirect = `${authRedirectTo}/auth/callback?next=${encodeURIComponent("/auth/update-password")}`;
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: recoveryRedirect });
-    setStatus(error ? error.message : `Password recovery instructions were sent to ${email}.`);
-    setStatusTone(error ? "error" : "success");
-  }
-
   return (
     <AuthFrame
       eyebrow="Welcome back"
@@ -95,11 +79,12 @@ export default function SignInPage() {
     >
       <form onSubmit={handleSubmit} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="space-y-4">
-          <label className="block">
-            <span className="text-sm font-semibold text-slate-700">Email address</span>
+          <div>
+            <label htmlFor="sign-in-email" className="text-sm font-semibold text-slate-700">Email address</label>
             <div className="mt-2 flex items-center gap-2 rounded-lg border border-slate-200 px-3 focus-within:border-primary focus-within:ring-4 focus-within:ring-blue-100">
               <Mail aria-hidden="true" size={17} className="text-slate-400" />
               <input
+                id="sign-in-email"
                 value={email}
                 type="email"
                 required
@@ -109,44 +94,22 @@ export default function SignInPage() {
                 placeholder="you@company.com"
               />
             </div>
-          </label>
-          <label className="block">
-            <span className="text-sm font-semibold text-slate-700">Password</span>
-            <div className="mt-2 flex items-center gap-2 rounded-lg border border-slate-200 px-3 focus-within:border-primary focus-within:ring-4 focus-within:ring-blue-100">
-              <LockKeyhole aria-hidden="true" size={17} className="text-slate-400" />
-              <input
-                value={password}
-                type="password"
-                required
-                minLength={8}
-                autoComplete="current-password"
-                onChange={(event) => setPassword(event.target.value)}
-                className="h-11 w-full bg-transparent text-sm outline-none"
-                placeholder="Enter your password"
-              />
-            </div>
-          </label>
+          </div>
+          <PasswordField id="sign-in-password" label="Password" value={password} onChange={setPassword} autoComplete="current-password" />
         </div>
 
         <div className="mt-3 flex justify-end">
-          <button type="button" onClick={handlePasswordReset} className="text-sm font-semibold text-primary hover:text-primary-deep">
+          <Link href="/auth/recover" className="text-sm font-semibold text-primary hover:text-primary-deep">
             Forgot password?
-          </button>
+          </Link>
         </div>
 
-        <Button type="submit" size="lg" className="mt-5 w-full" disabled={submitting}>
+        <Button type="submit" size="lg" className="mt-5 w-full" disabled={submitting || !supabaseReady} aria-describedby={!supabaseReady ? "sign-in-status" : undefined}>
           {submitting ? <LoaderCircle aria-hidden="true" size={17} className="animate-spin" /> : <ArrowRight aria-hidden="true" size={17} />}
           {submitting ? "Signing in..." : "Sign in"}
         </Button>
 
-        <StatusMessage tone={statusTone} className="mt-4">{status}</StatusMessage>
-
-        {!supabaseReady ? (
-          <Link href="/dashboard" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary">
-            Continue with founder demo
-            <ArrowRight aria-hidden="true" size={15} />
-          </Link>
-        ) : null}
+        <div id="sign-in-status"><StatusMessage tone={statusTone} className="mt-4">{status}</StatusMessage></div>
       </form>
 
       <p className="mt-5 text-center text-sm text-slate-600">

@@ -12,7 +12,7 @@ import { ValidationEmptyState } from "@/components/validation/ValidationEmptySta
 import { ValidationStatusBadge } from "@/components/validation/ValidationStatusBadge";
 import { ValidatorCard } from "@/components/validation/ValidatorCard";
 import { validationBookings, validatorMatchesFilters, validators } from "@/lib/data/validations";
-import { validationDomains, validationServices, validationTrustMetrics } from "@/lib/validation/config";
+import { validationDomains, validationServices } from "@/lib/validation/config";
 import type { ValidationDomain, ValidationServiceType } from "@/lib/validation/types";
 
 const serviceOptions: Array<"All" | ValidationServiceType> = ["All", "Written Idea Review", "Live Validation Session", "Expert Validation"];
@@ -59,6 +59,32 @@ export default function ValidationHubPage() {
     [availability, domain, language, minRating, priceRange, query, serviceType]
   );
 
+  if (!validators.length) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="Validation Hub"
+          title="Request human feedback when an approved reviewer is available."
+          description="Validator identity, expertise, service scope, availability, and pricing must be approved before a profile appears here."
+          actions={<Link href="/dashboard/idea-workspace"><Button variant="secondary">Return to Idea Workspace</Button></Link>}
+        />
+        <ValidationEmptyState
+          title="No approved validators are currently available"
+          description="No production validator records are available for this account. Venture Connect does not display synthetic qualifications, ratings, affiliations, or completed-validation counts."
+        />
+        <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-3">
+          {[
+            ["Document scope", "A booking shares one selected Idea Workspace version."],
+            ["Review evidence", "Scores and recommendations must be supported by a structured report."],
+            ["Outcome limits", "Validation does not guarantee funding or programme acceptance."]
+          ].map(([title, description]) => (
+            <div key={title} className="bg-white p-5"><h2 className="font-semibold">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{description}</p></div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -82,16 +108,6 @@ export default function ValidationHubPage() {
           </>
         }
       />
-
-      <div className="grid gap-3 md:grid-cols-4">
-        {validationTrustMetrics.map((metric) => (
-          <Card key={metric.label} className="p-4">
-            <p className="text-2xl font-semibold text-slate-950">{metric.value}</p>
-            <p className="mt-1 text-sm font-medium text-slate-600">{metric.label}</p>
-            <p className="mt-2 text-xs text-slate-400">{metric.note}</p>
-          </Card>
-        ))}
-      </div>
 
       <Card id="validators">
         <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 lg:flex-row lg:items-end lg:justify-between">
@@ -233,7 +249,7 @@ export default function ValidationHubPage() {
           title={validators.length ? "No validators match these filters" : "No approved validators are currently available"}
           description={validators.length
             ? "Try widening domain, language, rating, or availability. Venture Connect keeps validator discovery focused rather than turning it into a directory."
-            : "Profiles will appear after administrator approval. Development fixtures require ENABLE_DEMO_DATA=true."}
+            : "Profiles will appear after administrator approval and availability review."}
           action="Reset filters"
           onAction={() => {
             setQuery("");

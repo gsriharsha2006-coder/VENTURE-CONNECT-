@@ -1,5 +1,6 @@
 import { ideaWorkspaces as mockIdeaWorkspaces } from "@/lib/data";
-import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
+import { backendUnavailableError, getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import { completionPercent, emptySectionsForTemplate, getTemplateDef } from "@/lib/templates";
 import type { IdeaStatus, IdeaWorkspaceItem, StartupStage, WorkspaceTemplate, WorkspaceVisibility } from "@/lib/types";
 
@@ -106,7 +107,7 @@ function workspaceToInsert(workspace: IdeaWorkspaceItem, founderId: string) {
 export async function getIdeaWorkspaces(): Promise<IdeaWorkspaceItem[]> {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("list Idea Workspace documents");
-  if (!supabase || !userId) return mockIdeaWorkspaces;
+  if (!supabase || !userId) return isDemoDataEnabled() ? mockIdeaWorkspaces : [];
 
   const { data, error } = await supabase
     .from("idea_workspaces")
@@ -121,7 +122,10 @@ export async function getIdeaWorkspaces(): Promise<IdeaWorkspaceItem[]> {
 export async function createIdeaWorkspace(workspace: IdeaWorkspaceItem): Promise<IdeaWorkspaceItem> {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("create Idea Workspace document");
-  if (!supabase || !userId) return workspace;
+  if (!supabase || !userId) {
+    if (isDemoDataEnabled()) return workspace;
+    throw backendUnavailableError("Idea Workspace creation");
+  }
 
   const { data, error } = await supabase
     .from("idea_workspaces")
@@ -136,7 +140,10 @@ export async function createIdeaWorkspace(workspace: IdeaWorkspaceItem): Promise
 export async function updateIdeaWorkspace(workspace: IdeaWorkspaceItem): Promise<IdeaWorkspaceItem> {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("update Idea Workspace document");
-  if (!supabase || !userId) return workspace;
+  if (!supabase || !userId) {
+    if (isDemoDataEnabled()) return workspace;
+    throw backendUnavailableError("Idea Workspace saving");
+  }
 
   const { data, error } = await supabase
     .from("idea_workspaces")
@@ -153,7 +160,10 @@ export async function updateIdeaWorkspace(workspace: IdeaWorkspaceItem): Promise
 export async function archiveIdeaWorkspace(workspaceId: string) {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("archive Idea Workspace document");
-  if (!supabase || !userId) return;
+  if (!supabase || !userId) {
+    if (isDemoDataEnabled()) return;
+    throw backendUnavailableError("Idea Workspace archiving");
+  }
   const { error } = await supabase
     .from("idea_workspaces")
     .update({ archived: true, updated_at: new Date().toISOString() })
@@ -165,7 +175,10 @@ export async function archiveIdeaWorkspace(workspaceId: string) {
 export async function deleteIdeaWorkspace(workspaceId: string) {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("delete Idea Workspace document");
-  if (!supabase || !userId) return;
+  if (!supabase || !userId) {
+    if (isDemoDataEnabled()) return;
+    throw backendUnavailableError("Idea Workspace deletion");
+  }
   const { error } = await supabase
     .from("idea_workspaces")
     .delete()

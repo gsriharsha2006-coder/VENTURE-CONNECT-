@@ -1,5 +1,6 @@
 import { servicePosts as mockServicePosts, serviceProviders as mockServiceProviders, serviceRequests as mockServiceRequests } from "@/lib/data";
-import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
+import { backendUnavailableError, getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import type { ServiceCategory, ServicePost, ServiceProvider, ServiceRequest } from "@/lib/types";
 
 function normalizeProviderStatus(status?: string | null): ServiceProvider["verification_status"] {
@@ -79,7 +80,11 @@ function postFromRow(row: {
 
 export async function getServicePosts(): Promise<{ posts: ServicePost[]; providers: ServiceProvider[] }> {
   const supabase = getBrowserSupabase();
-  if (!supabase) return { posts: mockServicePosts, providers: mockServiceProviders };
+  if (!supabase) {
+    return isDemoDataEnabled()
+      ? { posts: mockServicePosts, providers: mockServiceProviders }
+      : { posts: [], providers: [] };
+  }
 
   const [{ data: providers, error: providerError }, { data: posts, error: postError }] = await Promise.all([
     supabase.from("service_providers").select("*"),
@@ -98,7 +103,10 @@ export async function getServicePosts(): Promise<{ posts: ServicePost[]; provide
 export async function createServiceProviderProfile(input: Partial<ServiceProvider>) {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("create service provider profile");
-  if (!supabase || !userId) return { mode: "mock-fallback" as const, provider: input };
+  if (!supabase || !userId) {
+    if (isDemoDataEnabled()) return { mode: "mock-fallback" as const, provider: input };
+    throw backendUnavailableError("Service-provider profile creation");
+  }
 
   const { data, error } = await supabase
     .from("service_providers")
@@ -124,7 +132,10 @@ export async function createServiceProviderProfile(input: Partial<ServiceProvide
 
 export async function createServicePost(input: Partial<ServicePost>) {
   const supabase = getBrowserSupabase();
-  if (!supabase) return { mode: "mock-fallback" as const, post: input };
+  if (!supabase) {
+    if (isDemoDataEnabled()) return { mode: "mock-fallback" as const, post: input };
+    throw backendUnavailableError("Service publishing");
+  }
   if (!input.provider_id) throw supabaseDataError("create service post", "A provider id is required.");
 
   const { data, error } = await supabase
@@ -151,6 +162,7 @@ export async function createServiceRequest(input: Pick<ServiceRequest, "provider
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("create service request");
   if (!supabase || !userId) {
+    if (!isDemoDataEnabled()) throw backendUnavailableError("Service request creation");
     return {
       ...mockServiceRequests[0],
       id: `request-${Date.now()}`,

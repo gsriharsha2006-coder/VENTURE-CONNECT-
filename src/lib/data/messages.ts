@@ -1,10 +1,15 @@
 import { messageThreads as mockMessageThreads } from "@/lib/data";
-import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
+import { backendUnavailableError, getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 
 export async function getMessagesForApplication(applicationId: string) {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("list application messages");
-  if (!supabase || !userId) return mockMessageThreads.filter((thread) => thread.id === applicationId || !applicationId);
+  if (!supabase || !userId) {
+    return isDemoDataEnabled()
+      ? mockMessageThreads.filter((thread) => thread.id === applicationId || !applicationId)
+      : [];
+  }
 
   const { data, error } = await supabase
     .from("messages")
@@ -27,6 +32,7 @@ export async function createInterestedConversation(input: {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("create interested conversation");
   if (!supabase || !userId) {
+    if (!isDemoDataEnabled()) throw backendUnavailableError("Conversation creation");
     return {
       id: `message-${Date.now()}`,
       mode: "mock-fallback" as const,

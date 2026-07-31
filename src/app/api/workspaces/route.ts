@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
 import { ideaWorkspaces, aiReport } from "@/lib/data";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import { generateTemplateAwareReport } from "@/lib/report-generator";
 
 export async function GET() {
-  return NextResponse.json({ workspaces: ideaWorkspaces });
+  const demoEnabled = isDemoDataEnabled();
+  return NextResponse.json({
+    workspaces: demoEnabled ? ideaWorkspaces : [],
+    meta: { source: demoEnabled ? "explicit-demo" : "database-required" }
+  });
 }
 
 export async function POST(request: Request) {
+  if (!isDemoDataEnabled()) {
+    return NextResponse.json({ error: "Workspace report generation requires an authenticated backend." }, { status: 503 });
+  }
   const body = await request.json();
   const { workspaceId, plan = "Free" } = body as { workspaceId?: string; plan?: string };
   const workspace = ideaWorkspaces.find((w) => w.id === workspaceId) ?? ideaWorkspaces[0];

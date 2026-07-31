@@ -65,7 +65,7 @@ export function ValidatorCard({ validator }: { validator: ValidatorProfile }) {
       </div>
 
       <div className="mt-5 border-t border-slate-100 pt-4">
-        <Link href={`/dashboard/validation-hub/validators/${validator.id}`}>
+        <Link href={`/validators/${validator.id}`}>
           <Button className="w-full">View Profile</Button>
         </Link>
       </div>

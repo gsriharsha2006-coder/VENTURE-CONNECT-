@@ -21,12 +21,12 @@ import { PublicHeader } from "@/components/public/PublicHeader";
 import { PRICING_TIERS } from "@/lib/subscription/plans";
 
 const journey = [
-  { title: "Create Idea Workspace", text: "Turn a raw concept into a structured startup document.", icon: Lightbulb },
-  { title: "Validate with Human Experts", text: "Book written, live, or expert review against the exact document version.", icon: UserCheck },
-  { title: "Improve the Document", text: "Apply recommendations while keeping a visible version history.", icon: FileText },
-  { title: "Apply to Opportunities", text: "Use the improved document for incubators, grants, and investor reviews.", icon: Search },
-  { title: "Track Applications", text: "Follow Venture Connect and external application status in one place.", icon: ClipboardCheck },
-  { title: "Message After Interest", text: "Conversations open only after an investor or reviewer signals interest.", icon: MessageSquareLock }
+  { title: "Discover a problem", text: "Capture the people affected, the current workaround, and the evidence you already have.", icon: Search },
+  { title: "Structure the idea", text: "Turn early notes into a clear Idea Workspace document.", icon: Lightbulb },
+  { title: "Validate assumptions", text: "Request human review when approved validators are available.", icon: UserCheck },
+  { title: "Prepare the application", text: "Improve the document and attach the required evidence.", icon: FileText },
+  { title: "Apply to a programme", text: "Use the correct Venture Connect or official organiser application route.", icon: ClipboardCheck },
+  { title: "Receive feedback", text: "Track review status and message only after authorised interest.", icon: MessageSquareLock }
 ];
 
 const founderBenefits = [
@@ -44,9 +44,9 @@ const ecosystemBenefits = [
 ];
 
 const servicePreview = [
-  { name: "Written Review", price: "₹149", detail: "Structured written feedback in 48 hours" },
-  { name: "Live Validation", price: "₹299", detail: "30-minute expert session plus report" },
-  { name: "Expert Validation", price: "₹599", detail: "Deep review, session, scorecard, and revision" }
+  { name: "Written review", detail: "Structured comments tied to one document version." },
+  { name: "Live validation", detail: "A scheduled review conversation with written next steps." },
+  { name: "Structured report", detail: "Evidence, risks, assumptions, and required improvements." }
 ];
 
 export function LandingPage() {
@@ -55,7 +55,7 @@ export function LandingPage() {
       <PublicHeader />
 
       <section
-        className="relative isolate flex min-h-[calc(100svh-120px)] overflow-hidden bg-slate-950 bg-cover bg-center text-white"
+        className="relative isolate flex min-h-[620px] overflow-hidden bg-slate-950 bg-cover bg-center text-white sm:min-h-[680px]"
         style={{ backgroundImage: "url('/images/landing/founder-workflow.webp')" }}
       >
         <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(2,6,23,0.96)_0%,rgba(2,6,23,0.88)_38%,rgba(2,6,23,0.42)_67%,rgba(2,6,23,0.18)_100%)]" />
@@ -66,26 +66,29 @@ export function LandingPage() {
               <ShieldCheck aria-hidden="true" size={13} />
               Startup document and validation workflow
             </Badge>
-            <h1 className="mt-5 text-5xl font-semibold leading-[1.02] sm:text-6xl lg:text-7xl">
+            <h1 className="mt-5 text-5xl font-semibold leading-[1.05] sm:text-6xl">
               Venture Connect
             </h1>
             <p className="mt-5 max-w-xl text-xl font-medium leading-8 text-white sm:text-2xl">
-              Build a stronger startup document before you ask for an opportunity.
+              From an early idea to an opportunity-ready startup.
             </p>
             <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">
-              Create an Idea Workspace, validate it with trusted experts, improve the evidence, and apply to incubators or investors through one controlled workflow.
+              Venture Connect helps emerging founders structure ideas, validate assumptions, prepare stronger applications and discover relevant startup programmes.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/auth/register">
                 <Button size="lg">
-                  Create your workspace
+                  Start an Idea Workspace
                   <ArrowRight aria-hidden="true" size={17} />
                 </Button>
               </Link>
-              <Link href="/#workflow">
+              <Link href="/auth/register">
                 <Button size="lg" variant="secondary">
-                  See how it works
+                  Explore opportunities
                 </Button>
+              </Link>
+              <Link href="/auth/register?intent=institution" className="inline-flex min-h-12 items-center text-sm font-semibold text-white underline decoration-white/40 underline-offset-4 hover:decoration-white">
+                Partner as an institution
               </Link>
             </div>
             <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-300">
@@ -105,7 +108,7 @@ export function LandingPage() {
           <div className="max-w-3xl">
             <p className="text-sm font-semibold text-primary">One connected founder journey</p>
             <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-              From rough idea to credible application.
+              A practical path from problem discovery to review.
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-600">
               Each stage carries the same structured document forward, so feedback, revisions, applications, and conversations keep their context.
@@ -179,10 +182,10 @@ export function LandingPage() {
                 Human review that is tied to the work.
               </h2>
               <p className="mt-4 text-base leading-7 text-slate-600">
-                Choose an administrator-approved validator by expertise, service, language, and availability. Every booking references an exact Idea Workspace version and produces a structured report.
+                Approved profiles show expertise, format, availability, price, and verification state. When no reviewers are available, the directory says so rather than displaying synthetic profiles.
               </p>
-              <Link href="/dashboard/validation-hub" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary">
-                Explore the Validation Hub
+              <Link href="/validators" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary">
+                View validator availability
                 <ArrowRight aria-hidden="true" size={16} />
               </Link>
             </div>
@@ -190,7 +193,6 @@ export function LandingPage() {
               {servicePreview.map((service) => (
                 <div key={service.name} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                   <p className="text-sm font-semibold text-primary">{service.name}</p>
-                  <p className="mt-3 text-3xl font-semibold">{service.price}</p>
                   <p className="mt-3 text-sm leading-6 text-slate-600">{service.detail}</p>
                 </div>
               ))}

@@ -10,20 +10,24 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/FeedbackState";
 import { messageThreads } from "@/lib/data";
 import { createInterestedConversation } from "@/lib/data/messages";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 
 export function MessagingPanel() {
   const pathname = usePathname();
   const investorMode = pathname.startsWith("/investor");
-  const [selectedId, setSelectedId] = useState(messageThreads[0]?.id ?? "");
+  const threads = useMemo(() => isDemoDataEnabled() ? messageThreads : [], []);
+  const [selectedId, setSelectedId] = useState(threads[0]?.id ?? "");
   const [draft, setDraft] = useState("");
   const [sent, setSent] = useState<string[]>([]);
+  const [deliveryStatus, setDeliveryStatus] = useState("");
+  const [sending, setSending] = useState(false);
   const [messageType, setMessageType] = useState<"Message" | "Feedback" | "Meeting">("Message");
   const [meetingTime, setMeetingTime] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
   const [scheduledMeeting, setScheduledMeeting] = useState<{ time: string; link: string } | null>(null);
   const selected = useMemo(
-    () => messageThreads.find((thread) => thread.id === selectedId) ?? messageThreads[0],
-    [selectedId]
+    () => threads.find((thread) => thread.id === selectedId) ?? threads[0],
+    [selectedId, threads]
   );
 
   if (!selected) {
@@ -38,22 +42,31 @@ export function MessagingPanel() {
 
   const lockedForFree = !investorMode && selected.founderPlan === "Free";
 
-  function sendMessage() {
+  async function sendMessage() {
     if (!draft.trim() || lockedForFree) return;
     const body = draft.trim();
     if (messageType === "Meeting") {
       if (!meetingTime || !meetingLink) return;
       setScheduledMeeting({ time: meetingTime, link: meetingLink });
     }
-    void createInterestedConversation({
-      applicationId: selected.id,
-      body: `${messageType}: ${body}`,
-      meetingLink: messageType === "Meeting" ? meetingLink : undefined,
-      meetingTime: messageType === "Meeting" ? meetingTime : undefined,
-      lockedForFreeUser: lockedForFree
-    });
-    setSent((current) => [...current, `${messageType}: ${body}`]);
-    setDraft("");
+    setSending(true);
+    setDeliveryStatus("Sending...");
+    try {
+      await createInterestedConversation({
+        applicationId: selected.id,
+        body: `${messageType}: ${body}`,
+        meetingLink: messageType === "Meeting" ? meetingLink : undefined,
+        meetingTime: messageType === "Meeting" ? meetingTime : undefined,
+        lockedForFreeUser: lockedForFree
+      });
+      setSent((current) => [...current, `${messageType}: ${body}`]);
+      setDraft("");
+      setDeliveryStatus("Message sent.");
+    } catch (error) {
+      setDeliveryStatus(error instanceof Error ? error.message : "Message could not be sent.");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -63,7 +76,7 @@ export function MessagingPanel() {
           <CardHeader eyebrow="Interested Threads" title={investorMode ? "Founder conversations" : "Reviewer conversations"} className="mb-0" />
         </div>
         <div className="flex-1 overflow-y-auto">
-          {messageThreads.map((thread) => (
+          {threads.map((thread) => (
             <button
               key={thread.id}
               type="button"
@@ -166,11 +179,11 @@ export function MessagingPanel() {
               value={draft}
               disabled={lockedForFree}
               onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && sendMessage()}
+              onKeyDown={(event) => event.key === "Enter" && void sendMessage()}
               placeholder={lockedForFree ? "Upgrade to reply after investor interest" : investorMode ? `Send ${messageType.toLowerCase()}...` : "Reply after interest..."}
               className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary disabled:bg-slate-50"
             />
-            <Button aria-label="Send message" onClick={sendMessage} disabled={lockedForFree}>
+            <Button aria-label="Send message" onClick={() => void sendMessage()} disabled={lockedForFree || sending}>
               <Send size={16} />
             </Button>
           </div>
@@ -179,6 +192,7 @@ export function MessagingPanel() {
               ? "Send a message, short feedback, or meeting time with a Zoom, Meet, or external link."
               : "Investors and incubators can start a thread only after marking an application Interested."}
           </p>
+          {deliveryStatus ? <p role="status" className="mt-2 text-xs font-medium text-slate-600">{deliveryStatus}</p> : null}
         </div>
       </Card>
     </div>

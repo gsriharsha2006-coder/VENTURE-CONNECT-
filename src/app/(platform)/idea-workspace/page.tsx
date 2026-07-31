@@ -36,6 +36,7 @@ import {
 } from "@/lib/data/ideaWorkspaces";
 import { ideaWorkspaces as seedWorkspaces } from "@/lib/data";
 import { getBadgesForWorkspace } from "@/lib/data/validations";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import { isSupabaseConfigured } from "@/lib/supabase/isConfigured";
 import { PLAN_LIMITS } from "@/lib/subscription/plans";
 import { completionPercent, getTemplateDef, WORKSPACE_TEMPLATES } from "@/lib/templates";
@@ -81,8 +82,9 @@ function createBlankWorkspace(template: WorkspaceTemplate = "startup"): IdeaWork
 
 export default function IdeaWorkspacePage() {
   const router = useRouter();
-  const [workspaces, setWorkspaces] = useState<IdeaWorkspaceItem[]>(seedWorkspaces);
-  const [selectedId, setSelectedId] = useState(seedWorkspaces[0]?.id ?? "");
+  const demoEnabled = isDemoDataEnabled();
+  const [workspaces, setWorkspaces] = useState<IdeaWorkspaceItem[]>(demoEnabled ? seedWorkspaces : []);
+  const [selectedId, setSelectedId] = useState(demoEnabled ? seedWorkspaces[0]?.id ?? "" : "");
   const [activeSection, setActiveSection] = useState<string>("");
   const [autosave, setAutosave] = useState("Autosave ready.");
   const [searchQuery, setSearchQuery] = useState("");
@@ -112,6 +114,11 @@ export default function IdeaWorkspacePage() {
         return;
       }
 
+      if (!demoEnabled) {
+        setPersistenceError("Account data is unavailable because backend services are not configured.");
+        return;
+      }
+
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (stored) {
         try {
@@ -130,16 +137,16 @@ export default function IdeaWorkspacePage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [demoEnabled]);
 
   useEffect(() => {
-    if (isSupabaseConfigured()) return;
+    if (isSupabaseConfigured() || !demoEnabled) return;
     const timer = window.setTimeout(() => {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(workspaces));
       setAutosave(`Autosaved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [workspaces]);
+  }, [demoEnabled, workspaces]);
 
   const selected = useMemo(
     () => workspaces.find((w) => w.id === selectedId) ?? workspaces[0],
@@ -273,6 +280,10 @@ export default function IdeaWorkspacePage() {
   }
 
   function createFromTemplate(template: WorkspaceTemplate) {
+    if (!isSupabaseConfigured() && !demoEnabled) {
+      setPersistenceError("Workspace creation is unavailable because account services are not configured.");
+      return;
+    }
     const limits = PLAN_LIMITS[plan];
     if (!limits.allTemplates && template !== "startup") {
       setAutosave(`${getTemplateDef(template).label} requires Student Pro or Founder Pro.`);
@@ -343,9 +354,9 @@ export default function IdeaWorkspacePage() {
           <Badge>Idea Workspace</Badge>
           <h1 className="mt-4 text-2xl font-semibold">No Idea Workspace documents yet</h1>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
-            Create your first Startup Template. When Supabase is configured, it will be saved to your authenticated founder account.
+            Create your first startup document. It will be saved only to your authenticated account; no local placeholder document is created.
           </p>
-          <Button className="mt-5" onClick={() => createFromTemplate("startup")}>
+          <Button className="mt-5" onClick={() => createFromTemplate("startup")} disabled={!isSupabaseConfigured() && !demoEnabled}>
             <LayoutTemplate size={16} />
             Create first workspace
           </Button>
@@ -364,7 +375,7 @@ export default function IdeaWorkspacePage() {
         description="Build application-ready startup documents or use the optional Hackathon Project workspace to prepare a solution, demo, and pitch."
         actions={
           <>
-          <label className="flex h-10 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3">
+          {demoEnabled ? <label className="flex h-10 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3">
             <span className="text-sm font-medium text-blue-700">Demo plan</span>
             <select
               aria-label="Demo subscription plan"
@@ -376,7 +387,7 @@ export default function IdeaWorkspacePage() {
               <option>Student Pro</option>
               <option>Founder Pro</option>
             </select>
-          </label>
+          </label> : null}
           <Button onClick={() => setShowTemplatePicker(true)}>
             <LayoutTemplate size={16} />
             New workspace

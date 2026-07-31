@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { validationBookings } from "@/lib/data/validations";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 
 export async function POST(request: Request) {
+  if (!isDemoDataEnabled()) {
+    return NextResponse.json({ error: "Validation messaging requires an authenticated backend." }, { status: 503 });
+  }
   const body = await request.json() as {
     bookingId?: string;
     senderRole?: "Founder" | "Validator";

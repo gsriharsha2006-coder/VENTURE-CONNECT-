@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { MetricCard } from "@/components/ui/MetricCard";
-import { StatusMessage } from "@/components/ui/FeedbackState";
+import { EmptyState, StatusMessage } from "@/components/ui/FeedbackState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { adminStats, applications, opportunities, reportSuite, serviceProviders } from "@/lib/data";
 import { validationBadges, validationBookings, validationReports, validators } from "@/lib/data/validations";
@@ -21,6 +21,7 @@ import {
 import type { ApplicationMethod, OpportunityType, ServiceVerificationStatus, SubscriptionPlan } from "@/lib/types";
 import { validationServices, validatorLevelRules } from "@/lib/validation/config";
 import type { ValidatorLevel } from "@/lib/validation/types";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 
 const seedUsers = [
   { id: "user-1", name: "Nisha Rao", role: "Founder", plan: "Free" as SubscriptionPlan, verification: "Verified", trust: 82 },
@@ -67,6 +68,19 @@ export default function AdminPage() {
     subscriptions: ["Subscription controls", "Review usage and manually change plans for MVP testing."]
   };
   const [title, subtitle] = headings[view] ?? headings.overview;
+
+  if (!isDemoDataEnabled()) {
+    return (
+      <div className="space-y-6">
+        <PageHeader eyebrow="Administration" title={title} description={subtitle} />
+        <EmptyState
+          title="No administrative records are available"
+          description="User, programme, validation, payment, and moderation queues will appear after authenticated backend records are connected. Local approve, reject, and verification simulations are disabled."
+          icon={ShieldCheck}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

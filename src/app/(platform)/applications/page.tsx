@@ -3,32 +3,22 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
-  CheckCircle2,
-  ClipboardList,
   ExternalLink,
   FileChartColumn,
   Lightbulb,
   MessagesSquare,
-  Save,
-  ShieldCheck,
-  XCircle
+  ShieldCheck
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { applications as seedApplications, externalRegistrations as seedExternalRegistrations } from "@/lib/data";
+import { getApplications } from "@/lib/data/applications";
 import { getExternalRegistrations, updateExternalRegistration } from "@/lib/data/opportunity-tracking";
 import { getBadgesForWorkspace } from "@/lib/data/validations";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import type { ApplicationStatus, ExternalRegistration, ExternalRegistrationStatus } from "@/lib/types";
-
-const actions: Array<{ label: string; status: ApplicationStatus; icon: typeof CheckCircle2; tone: "primary" | "secondary" }> = [
-  { label: "Under Review", status: "Under Review", icon: ClipboardList, tone: "secondary" },
-  { label: "Save", status: "Saved by Investor", icon: Save, tone: "secondary" },
-  { label: "Interested", status: "Interested", icon: MessagesSquare, tone: "primary" },
-  { label: "Shortlist", status: "Shortlisted", icon: CheckCircle2, tone: "secondary" },
-  { label: "Reject", status: "Rejected", icon: XCircle, tone: "secondary" }
-];
 
 const externalStatuses: ExternalRegistrationStatus[] = [
   "Not Started",
@@ -48,20 +38,33 @@ function statusTone(status: ApplicationStatus) {
 }
 
 export default function ApplicationsPage() {
+  const demoEnabled = isDemoDataEnabled();
+  const initialApplications = demoEnabled ? seedApplications : [];
+  const initialRegistrations = demoEnabled ? seedExternalRegistrations : [];
   const [tab, setTab] = useState<"internal" | "external">("internal");
-  const [applications, setApplications] = useState(seedApplications);
-  const [selectedId, setSelectedId] = useState(seedApplications[0]?.id ?? "");
-  const [registrations, setRegistrations] = useState<ExternalRegistration[]>(seedExternalRegistrations);
-  const [selectedExternalId, setSelectedExternalId] = useState(seedExternalRegistrations[0]?.id ?? "");
+  const [applications, setApplications] = useState(initialApplications);
+  const [selectedId, setSelectedId] = useState(initialApplications[0]?.id ?? "");
+  const [registrations, setRegistrations] = useState<ExternalRegistration[]>(initialRegistrations);
+  const [selectedExternalId, setSelectedExternalId] = useState(initialRegistrations[0]?.id ?? "");
   const [externalNotice, setExternalNotice] = useState("");
   const selected = applications.find((application) => application.id === selectedId) ?? applications[0];
   const selectedExternal = registrations.find((registration) => registration.id === selectedExternalId) ?? registrations[0];
   const validationBadges = selected?.idea_workspace_id ? getBadgesForWorkspace(selected.idea_workspace_id) : [];
 
   useEffect(() => {
-    const tracked = getExternalRegistrations(seedExternalRegistrations);
+    const tracked = getExternalRegistrations(demoEnabled ? seedExternalRegistrations : []);
     setRegistrations(tracked);
     setSelectedExternalId((current) => current || tracked[0]?.id || "");
+  }, [demoEnabled]);
+
+  useEffect(() => {
+    let active = true;
+    void getApplications().then((items) => {
+      if (!active) return;
+      setApplications(items);
+      setSelectedId((current) => current || items[0]?.id || "");
+    });
+    return () => { active = false; };
   }, []);
 
   const externalCounts = useMemo(
@@ -72,27 +75,6 @@ export default function ApplicationsPage() {
     }),
     [registrations]
   );
-
-  function updateStatus(status: ApplicationStatus) {
-    if (!selected) return;
-    setApplications((current) =>
-      current.map((application) =>
-        application.id === selected.id
-          ? {
-              ...application,
-              status,
-              reviewedAt: new Date().toISOString().slice(0, 10),
-              timeline: [
-                ...application.timeline,
-                ...(application.timeline.some((step) => step.label === status)
-                  ? []
-                  : [{ label: status, date: "Now", complete: true }])
-              ]
-            }
-          : application
-      )
-    );
-  }
 
   async function updateTrackedStatus(status: ExternalRegistrationStatus) {
     if (!selectedExternal) return;
@@ -163,17 +145,7 @@ export default function ApplicationsPage() {
                       Submitted by {selected.founder} to {selected.reviewer} for {selected.opportunity}.
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {actions.map((action) => {
-                      const Icon = action.icon;
-                      return (
-                        <Button key={action.label} variant={action.tone} onClick={() => updateStatus(action.status)}>
-                          <Icon size={16} />
-                          {action.label}
-                        </Button>
-                      );
-                    })}
-                  </div>
+                  <p className="max-w-sm text-sm leading-6 text-slate-500">Status is read-only here. Reviewer decisions must come from the authorised programme workflow.</p>
                 </div>
               </Card>
 

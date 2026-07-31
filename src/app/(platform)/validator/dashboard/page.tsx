@@ -17,8 +17,8 @@ export default function ValidatorDashboardPage() {
   if (!activeValidator) {
     return (
       <ValidationEmptyState
-        title="No validator profile is available."
-        description="A profile will appear after administrator approval. Development fixtures require ENABLE_DEMO_DATA=true."
+        title="No approved validator profile is available"
+        description="A validator workspace will appear after identity, expertise, and service scope have been reviewed. No sample requests or performance figures are shown."
       />
     );
   }
@@ -41,7 +41,7 @@ export default function ValidatorDashboardPage() {
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="New requests" value="1" delta="Acceptance required" />
+        <MetricCard label="New requests" value={String(assignedBookings.filter((booking) => !booking.accepted).length)} delta="Acceptance required" />
         <MetricCard label="Reports due" value={String(reportDue.length)} delta="Mandatory sections enforced" />
         <MetricCard label="Completed validations" value={String(validationReports.length)} delta="Badge checks complete" />
         <MetricCard label="Earnings summary" value={`Rs ${earnings}`} delta="Payouts after dispute window" />

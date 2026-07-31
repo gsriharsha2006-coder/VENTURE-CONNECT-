@@ -15,12 +15,7 @@ type ConversationParticipant = {
 export async function createConversationFromInterest(applicationId: string, actorProfileId: string) {
   const supabase = createServiceClient();
   if (!supabase) {
-    return {
-      id: `conversation-${Date.now()}`,
-      application_id: applicationId,
-      initiated_by_profile_id: actorProfileId,
-      mode: "mock-fallback"
-    };
+    throw new Error("Conversation creation is unavailable because server data services are not configured.");
   }
 
   const [{ data: application, error: applicationError }, { data: actor, error: actorError }] = await Promise.all([
@@ -155,13 +150,7 @@ export async function createConversationFromInterest(applicationId: string, acto
 export async function assertConversationParticipant(conversationId: string, profileId: string) {
   const supabase = createServiceClient();
   if (!supabase) {
-    return {
-      id: conversationId,
-      status: "active",
-      application_id: null,
-      participants: [{ profile_id: profileId, profile: null }],
-      recipientProfiles: []
-    };
+    throw new Error("Conversation access is unavailable because server data services are not configured.");
   }
 
   const [{ data: conversation, error: conversationError }, { data: participants, error: participantError }] = await Promise.all([

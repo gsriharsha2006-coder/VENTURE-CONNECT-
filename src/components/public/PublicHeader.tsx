@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 
 const navigation = [
   { href: "/#workflow", label: "How it works" },
-  { href: "/#validation", label: "Validation Hub" },
+  { href: "/validators", label: "Validators" },
   { href: "/#opportunities", label: "Opportunities" },
   { href: "/pricing", label: "Pricing" }
 ];

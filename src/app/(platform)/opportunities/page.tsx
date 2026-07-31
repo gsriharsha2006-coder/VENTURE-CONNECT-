@@ -24,7 +24,8 @@ import { StatusMessage } from "@/components/ui/FeedbackState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useDemoPlan } from "@/hooks/useDemoPlan";
 import { applyToOpportunity } from "@/lib/data/applications";
-import { externalRegistrations, ideaWorkspaces, opportunities as seedOpportunities } from "@/lib/data";
+import { externalRegistrations, ideaWorkspaces as seedWorkspaces, opportunities as seedOpportunities } from "@/lib/data";
+import { getIdeaWorkspaces } from "@/lib/data/ideaWorkspaces";
 import {
   getExternalRegistrations,
   recordOpportunityEvent,
@@ -32,6 +33,7 @@ import {
 } from "@/lib/data/opportunity-tracking";
 import { getBadgesForWorkspace } from "@/lib/data/validations";
 import { getOpportunities } from "@/lib/data/opportunities";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import { PLAN_LIMITS } from "@/lib/subscription/plans";
 import { completionPercent, missingRequiredSections } from "@/lib/templates";
 import {
@@ -39,7 +41,7 @@ import {
   getOpportunityApplicationMethod,
   isExternallyManagedApplication
 } from "@/lib/opportunities/application-methods";
-import type { DomainTag, OpportunityMode, OpportunityType, StartupStage } from "@/lib/types";
+import type { DomainTag, IdeaWorkspaceItem, OpportunityMode, OpportunityType, StartupStage } from "@/lib/types";
 
 const opportunityTypes: Array<"All" | OpportunityType> = [
   "All",
@@ -66,7 +68,9 @@ const levels = ["All", "Beginner", "Intermediate", "Advanced"] as const;
 const stages: Array<"All" | StartupStage | "Any"> = ["All", "Any", "Idea", "Prototype", "MVP", "Revenue", "Seed"];
 
 export default function OpportunitiesPage() {
-  const [opportunities, setOpportunities] = useState(seedOpportunities);
+  const demoEnabled = isDemoDataEnabled();
+  const [opportunities, setOpportunities] = useState(demoEnabled ? seedOpportunities : []);
+  const [workspaces, setWorkspaces] = useState<IdeaWorkspaceItem[]>(demoEnabled ? seedWorkspaces : []);
   const [query, setQuery] = useState("");
   const [type, setType] = useState<(typeof opportunityTypes)[number]>("All");
   const [domain, setDomain] = useState<(typeof domains)[number]>("All");
@@ -79,10 +83,10 @@ export default function OpportunitiesPage() {
   const [fundingQuery, setFundingQuery] = useState("");
   const [eligibilityQuery, setEligibilityQuery] = useState("");
   const [deadlineQuery, setDeadlineQuery] = useState("");
-  const [workspaceId, setWorkspaceId] = useState(ideaWorkspaces[0].id);
+  const [workspaceId, setWorkspaceId] = useState((demoEnabled ? seedWorkspaces[0]?.id : "") ?? "");
   const [applied, setApplied] = useState<string[]>([]);
   const [externalStatuses, setExternalStatuses] = useState<Record<string, string>>(() =>
-    Object.fromEntries(getExternalRegistrations(externalRegistrations).map((item) => [item.opportunity_id, item.status]))
+    Object.fromEntries(getExternalRegistrations(demoEnabled ? externalRegistrations : []).map((item) => [item.opportunity_id, item.status]))
   );
   const [externalConfirmId, setExternalConfirmId] = useState<string | null>(null);
   const [warning, setWarning] = useState("");
@@ -109,14 +113,26 @@ export default function OpportunitiesPage() {
   }, []);
 
   useEffect(() => {
-    setExternalStatuses(
-      Object.fromEntries(getExternalRegistrations(externalRegistrations).map((item) => [item.opportunity_id, item.status]))
-    );
+    let mounted = true;
+    void getIdeaWorkspaces().then((items) => {
+      if (!mounted) return;
+      setWorkspaces(items);
+      setWorkspaceId((current) => current || items[0]?.id || "");
+    }).catch((error) => {
+      if (mounted) setLoadError(error instanceof Error ? error.message : "Unable to load Idea Workspace documents.");
+    });
+    return () => { mounted = false; };
   }, []);
 
-  const selectedWorkspace = ideaWorkspaces.find((workspace) => workspace.id === workspaceId) ?? ideaWorkspaces[0];
-  const selectedCompletion = completionPercent(selectedWorkspace.sections, selectedWorkspace.template);
-  const selectedBadges = getBadgesForWorkspace(selectedWorkspace.id);
+  useEffect(() => {
+    setExternalStatuses(
+      Object.fromEntries(getExternalRegistrations(demoEnabled ? externalRegistrations : []).map((item) => [item.opportunity_id, item.status]))
+    );
+  }, [demoEnabled]);
+
+  const selectedWorkspace = workspaces.find((workspace) => workspace.id === workspaceId) ?? workspaces[0];
+  const selectedCompletion = selectedWorkspace ? completionPercent(selectedWorkspace.sections, selectedWorkspace.template) : 0;
+  const selectedBadges = selectedWorkspace ? getBadgesForWorkspace(selectedWorkspace.id) : [];
 
   const filtered = useMemo(
     () =>
@@ -170,12 +186,16 @@ export default function OpportunitiesPage() {
     void recordOpportunityEvent({ opportunityId: id, eventType: "opportunity_saved", referralSource: "opportunity_marketplace" });
   }
 
-  function apply(opportunityId: string) {
+  async function apply(opportunityId: string) {
     const opportunity = opportunities.find((item) => item.id === opportunityId);
     if (!opportunity) return;
     const applicationMethod = getOpportunityApplicationMethod(opportunity);
     if (!applicationMethodUsesWorkspace(applicationMethod)) {
       setWarning("This opportunity is managed by the organiser. Use the official registration action instead of submitting an Idea Workspace.");
+      return;
+    }
+    if (!selectedWorkspace) {
+      setWarning("Create and complete an Idea Workspace before starting an internal application.");
       return;
     }
     const monthlyLimit = PLAN_LIMITS[plan].opportunitySubmissionsPerMonth;
@@ -191,13 +211,17 @@ export default function OpportunitiesPage() {
       return;
     }
 
-    setApplied((current) => (current.includes(opportunityId) ? current : [opportunityId, ...current]));
-    void applyToOpportunity({
-      opportunityId,
-      ideaWorkspaceId: selectedWorkspace.id,
-      applicationMethod
-    });
-    setWarning(selectedBadges.length ? "Application submitted with completed Human Reviewed Idea Workspace summary." : "Application submitted with completed Idea Workspace document.");
+    try {
+      await applyToOpportunity({
+        opportunityId,
+        ideaWorkspaceId: selectedWorkspace.id,
+        applicationMethod
+      });
+      setApplied((current) => (current.includes(opportunityId) ? current : [opportunityId, ...current]));
+      setWarning(selectedBadges.length ? "Application submitted with a Human Reviewed summary." : "Application submitted with the selected Idea Workspace document.");
+    } catch (error) {
+      setWarning(error instanceof Error ? error.message : "Application submission could not be completed.");
+    }
   }
 
   async function continueExternalRegistration(opportunityId: string, destination: { url: string; domain: string }) {
@@ -234,13 +258,15 @@ export default function OpportunitiesPage() {
     setWarning("External registration marked as applied and labelled Tracked by You. The organiser has not verified this status.");
   }
 
+  const externalConfirmOpportunity = opportunities.find((item) => item.id === externalConfirmId);
+
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Opportunities"
         title="Discover the right programme, investor, or event."
         description="Every listing shows whether you apply inside Venture Connect or continue to an organiser-managed registration page."
-        actions={
+        actions={demoEnabled ? (
           <label className="flex h-10 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3">
             <span className="text-sm font-medium text-blue-700">Demo plan</span>
             <select
@@ -254,7 +280,7 @@ export default function OpportunitiesPage() {
               <option>Founder Pro</option>
             </select>
           </label>
-        }
+        ) : undefined}
       />
 
       {loading ? (
@@ -311,9 +337,7 @@ export default function OpportunitiesPage() {
           <input aria-label="Deadline filter" value={deadlineQuery} onChange={(event) => setDeadlineQuery(event.target.value)} placeholder="Deadline (e.g. Jul)" className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none" />
           <input aria-label="Funding filter" value={fundingQuery} onChange={(event) => setFundingQuery(event.target.value)} placeholder="Funding, prize, or grant" className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none" />
           <input aria-label="Eligibility filter" value={eligibilityQuery} onChange={(event) => setEligibilityQuery(event.target.value)} placeholder="Eligibility" className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none" />
-          <div className="flex items-center rounded-xl border border-blue-100 bg-blue-50 px-3 text-sm text-blue-900">
-            {applied.length}/{PLAN_LIMITS[plan].opportunitySubmissionsPerMonth} internal submissions used
-          </div>
+          {demoEnabled ? <div className="flex items-center rounded-xl border border-blue-100 bg-blue-50 px-3 text-sm text-blue-900">{applied.length}/{PLAN_LIMITS[plan].opportunitySubmissionsPerMonth} demo submissions used</div> : null}
         </div>
       </Card>
 
@@ -431,10 +455,11 @@ export default function OpportunitiesPage() {
           <Card>
             <CardHeader eyebrow="Internal applications only" title="Selected Idea Workspace" />
             <select value={workspaceId} onChange={(event) => setWorkspaceId(event.target.value)} className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none">
-              {ideaWorkspaces.map((workspace) => (
+              {workspaces.map((workspace) => (
                 <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
               ))}
             </select>
+            {!selectedWorkspace ? <p className="mt-3 text-sm leading-6 text-slate-600">No Idea Workspace documents are available for internal applications.</p> : null}
             <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-center justify-between text-sm font-semibold">
                 <span>Completion</span>
@@ -516,9 +541,9 @@ export default function OpportunitiesPage() {
         </aside>
       </div>
 
-      {externalConfirmId ? (
+      {externalConfirmId && externalConfirmOpportunity ? (
         <ExternalRegistrationDialog
-          opportunity={opportunities.find((item) => item.id === externalConfirmId) ?? seedOpportunities[0]}
+          opportunity={externalConfirmOpportunity}
           onCancel={() => setExternalConfirmId(null)}
           onContinue={(destination) => void continueExternalRegistration(externalConfirmId, destination)}
         />

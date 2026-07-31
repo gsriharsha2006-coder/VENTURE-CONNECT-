@@ -1,6 +1,7 @@
 "use client";
 
 import { getBrowserSupabase, getCurrentUserId } from "@/lib/data/shared";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import type {
   ExternalRegistration,
   ExternalRegistrationStatus,
@@ -34,11 +35,10 @@ function writeStored<T>(key: string, value: T) {
 }
 
 async function currentUserId() {
-  try {
-    return await getCurrentUserId("track opportunity activity") ?? DEMO_USER_ID;
-  } catch {
-    return DEMO_USER_ID;
-  }
+  const userId = await getCurrentUserId("track opportunity activity");
+  if (userId) return userId;
+  if (isDemoDataEnabled()) return DEMO_USER_ID;
+  throw new Error("Opportunity tracking is unavailable because account services are not configured.");
 }
 
 export async function recordOpportunityEvent(input: {
@@ -56,27 +56,26 @@ export async function recordOpportunityEvent(input: {
     referral_source: input.referralSource
   };
 
-  const local = readStored<AnalyticsRecord[]>(ANALYTICS_KEY, []);
-  writeStored(ANALYTICS_KEY, [record, ...local].slice(0, 250));
-
-  if (userId === DEMO_USER_ID) return record;
-  try {
-    const supabase = getBrowserSupabase();
-    if (supabase) {
-      await supabase.from("opportunity_analytics").insert({
-        opportunity_id: input.opportunityId,
-        user_id: userId,
-        event_type: input.eventType,
-        referral_source: input.referralSource ?? null
-      });
-    }
-  } catch {
-    // Local tracking remains available when the optional Supabase write is unavailable.
+  if (userId === DEMO_USER_ID) {
+    const local = readStored<AnalyticsRecord[]>(ANALYTICS_KEY, []);
+    writeStored(ANALYTICS_KEY, [record, ...local].slice(0, 250));
+    return record;
   }
+
+  const supabase = getBrowserSupabase();
+  if (!supabase) throw new Error("Opportunity tracking is unavailable.");
+  const { error } = await supabase.from("opportunity_analytics").insert({
+    opportunity_id: input.opportunityId,
+    user_id: userId,
+    event_type: input.eventType,
+    referral_source: input.referralSource ?? null
+  });
+  if (error) throw error;
   return record;
 }
 
 export function getExternalRegistrations(fallback: ExternalRegistration[] = []) {
+  if (!isDemoDataEnabled()) return fallback;
   const stored = readStored<ExternalRegistration[]>(REGISTRATIONS_KEY, []);
   if (!stored.length) return fallback;
   const merged = new Map(fallback.map((item) => [item.opportunity_id, item]));
@@ -114,28 +113,24 @@ export async function updateExternalRegistration(input: {
     organizer_verified: false,
     updated_at: new Date().toISOString()
   };
-  const next = [registration, ...current.filter((item) => item.opportunity_id !== input.opportunityId)];
-  writeStored(REGISTRATIONS_KEY, next);
-
-  if (userId !== DEMO_USER_ID) {
-    try {
-      const supabase = getBrowserSupabase();
-      if (supabase) {
-        await supabase.from("external_registrations").upsert({
-          founder_id: userId,
-          opportunity_id: input.opportunityId,
-          status: input.status,
-          external_application_id: input.externalApplicationId ?? null,
-          team_name: input.teamName ?? null,
-          submission_date: input.submissionDate || null,
-          notes: input.notes ?? null,
-          organizer_verified: false,
-          updated_at: registration.updated_at
-        }, { onConflict: "founder_id,opportunity_id" });
-      }
-    } catch {
-      // The local prototype remains usable until the migration is deployed.
-    }
+  if (userId === DEMO_USER_ID) {
+    const next = [registration, ...current.filter((item) => item.opportunity_id !== input.opportunityId)];
+    writeStored(REGISTRATIONS_KEY, next);
+  } else {
+    const supabase = getBrowserSupabase();
+    if (!supabase) throw new Error("External registration tracking is unavailable.");
+    const { error } = await supabase.from("external_registrations").upsert({
+      founder_id: userId,
+      opportunity_id: input.opportunityId,
+      status: input.status,
+      external_application_id: input.externalApplicationId ?? null,
+      team_name: input.teamName ?? null,
+      submission_date: input.submissionDate || null,
+      notes: input.notes ?? null,
+      organizer_verified: false,
+      updated_at: registration.updated_at
+    }, { onConflict: "founder_id,opportunity_id" });
+    if (error) throw error;
   }
 
   await recordOpportunityEvent({

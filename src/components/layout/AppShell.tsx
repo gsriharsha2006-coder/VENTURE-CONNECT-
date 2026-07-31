@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   Bell,
@@ -35,7 +35,8 @@ import type { LucideIcon } from "lucide-react";
 import { VentureLogo } from "@/components/brand/VentureLogo";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { toDatabaseRole } from "@/lib/auth/roles";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
@@ -90,12 +91,15 @@ const adminNav: NavItem[] = [
   { href: "/admin/settings", label: "Settings", icon: Settings2 }
 ];
 
-function navigationFor(pathname: string) {
-  if (pathname.startsWith("/investor")) return { label: "Investor / Organizer", items: investorNav };
-  if (pathname.startsWith("/provider")) return { label: "Service Provider", items: providerNav };
-  if (pathname.startsWith("/validator")) return { label: "Validator", items: validatorNav };
-  if (pathname.startsWith("/admin")) return { label: "Admin", items: adminNav };
-  return { label: "Founder", items: founderNav };
+function navigationFor(role: string) {
+  const databaseRole = toDatabaseRole(role);
+  if (["investor", "incubator", "hackathon_organizer", "event_organizer"].includes(databaseRole)) {
+    return { label: databaseRole === "investor" ? "Investor" : "Institution / organiser", items: investorNav, kind: "institution" as const };
+  }
+  if (databaseRole === "service_provider") return { label: "Service provider", items: providerNav, kind: "provider" as const };
+  if (databaseRole === "validator") return { label: "Validator", items: validatorNav, kind: "validator" as const };
+  if (databaseRole === "admin") return { label: "Admin", items: adminNav, kind: "admin" as const };
+  return { label: "Founder", items: founderNav, kind: "founder" as const };
 }
 
 function isActive(pathname: string, href: string) {
@@ -103,17 +107,19 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, role }: { children: React.ReactNode; role: string }) {
   const pathname = usePathname();
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
-  const navigation = navigationFor(pathname);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const navigation = navigationFor(role);
   const currentItem = [...navigation.items]
     .sort((a, b) => b.href.length - a.href.length)
     .find((item) => isActive(pathname, item.href)) ?? navigation.items[0];
-  const isInvestor = pathname.startsWith("/investor");
-  const isProvider = pathname.startsWith("/provider");
-  const isValidator = pathname.startsWith("/validator");
-  const isAdmin = pathname.startsWith("/admin");
+  const isInvestor = navigation.kind === "institution";
+  const isProvider = navigation.kind === "provider";
+  const isValidator = navigation.kind === "validator";
+  const isAdmin = navigation.kind === "admin";
   const notificationsHref = isInvestor ? "/investor/notifications" : isValidator ? "/validator/messages" : "/dashboard/messages";
   const messagesHref = isInvestor ? "/investor/messages" : isValidator ? "/validator/messages" : "/dashboard/messages";
   const discoveryHref = isInvestor
@@ -136,7 +142,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         : "/dashboard/idea-workspace";
   const primaryLabel = isInvestor ? "Post opportunity" : isProvider ? "Manage services" : isValidator ? "Review requests" : isAdmin ? "Review validators" : "New document";
   const PrimaryIcon = isInvestor ? FilePlus2 : isProvider ? Store : isValidator ? Inbox : isAdmin ? ShieldCheck : Lightbulb;
-  const supabaseReady = isSupabaseConfigured();
 
   useEffect(() => {
     setMobileNavigationOpen(false);
@@ -145,14 +150,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!mobileNavigationOpen) return;
     const previousOverflow = document.body.style.overflow;
+    const menuButton = menuButtonRef.current;
     document.body.style.overflow = "hidden";
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setMobileNavigationOpen(false);
     };
     window.addEventListener("keydown", closeOnEscape);
+    closeButtonRef.current?.focus();
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
+      menuButton?.focus();
     };
   }, [mobileNavigationOpen]);
 
@@ -222,6 +230,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex items-center justify-between gap-3">
               <VentureLogo />
               <button
+                ref={closeButtonRef}
                 type="button"
                 aria-label="Close navigation"
                 onClick={() => setMobileNavigationOpen(false)}
@@ -266,6 +275,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
+                ref={menuButtonRef}
                 type="button"
                 aria-label="Open navigation"
                 aria-expanded={mobileNavigationOpen}
@@ -303,7 +313,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     className="relative rounded-lg border border-slate-200 bg-white p-2.5 text-slate-600 transition-colors hover:border-blue-200 hover:bg-blue-50"
                   >
                     <Bell size={18} />
-                    <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
                   </Link>
                   <Link
                     href={messagesHref}
@@ -314,24 +323,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </Link>
                 </>
               ) : null}
-              {supabaseReady ? (
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50"
-                >
-                  <LogOut size={16} />
-                  <span className="hidden sm:inline">Log out</span>
-                </button>
-              ) : (
-                <Link
-                  href="/auth"
-                  className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50 lg:flex"
-                >
-                  <LayoutDashboard size={16} />
-                  Switch role
-                </Link>
-              )}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50"
+              >
+                <LogOut size={16} />
+                <span className="hidden sm:inline">Log out</span>
+              </button>
             </div>
           </div>
         </header>

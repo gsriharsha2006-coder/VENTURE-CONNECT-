@@ -1,5 +1,6 @@
 import { opportunities as mockOpportunities } from "@/lib/data";
-import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
+import { backendUnavailableError, getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import { toDatabaseRole, toUserRole } from "@/lib/auth/roles";
 import {
   applicationMethodNeedsExternalUrl,
@@ -123,7 +124,7 @@ function opportunityFromRow(row: {
 
 export async function getOpportunities(): Promise<Opportunity[]> {
   const supabase = getBrowserSupabase();
-  if (!supabase) return mockOpportunities;
+  if (!supabase) return isDemoDataEnabled() ? mockOpportunities : [];
 
   const { data, error } = await supabase
     .from("opportunities")
@@ -161,6 +162,7 @@ export async function createOpportunity(input: {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("create opportunity");
   if (!supabase || !userId) {
+    if (!isDemoDataEnabled()) throw backendUnavailableError("Opportunity publishing");
     return {
       id: `opp-${Date.now()}`,
       title: input.title,

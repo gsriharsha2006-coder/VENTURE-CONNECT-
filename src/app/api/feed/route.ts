@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
 import { feedPosts } from "@/lib/data";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 
 export async function GET() {
+  const demoEnabled = isDemoDataEnabled();
   return NextResponse.json({
-    data: feedPosts,
+    data: demoEnabled ? feedPosts : [],
     meta: {
-      source: "mock-realtime",
-      recommendationModel: "venture-connect-feed-v0"
+      source: demoEnabled ? "explicit-demo" : "database-required"
     }
   });
 }
 
 export async function POST(request: Request) {
+  if (!isDemoDataEnabled()) {
+    return NextResponse.json({ error: "Feed publishing requires an authenticated backend." }, { status: 503 });
+  }
   const body = await request.json();
 
   return NextResponse.json(
@@ -21,7 +25,6 @@ export async function POST(request: Request) {
         ...body,
         upvotes: 0,
         comments: 0,
-        score: 72,
         postedAt: "now"
       }
     },

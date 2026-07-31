@@ -1,6 +1,7 @@
 import { computeEntitlements } from "@/lib/subscription/plans";
-import { getBrowserSupabase, getCurrentUserId, normalizePlan, supabaseDataError } from "@/lib/data/shared";
+import { backendUnavailableError, getBrowserSupabase, getCurrentUserId, normalizePlan, supabaseDataError } from "@/lib/data/shared";
 import { mockCurrentProfile } from "@/lib/data/profiles";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import type { Subscription, SubscriptionPlan } from "@/lib/types";
 
 export async function getSubscriptionUsage(): Promise<{
@@ -11,6 +12,7 @@ export async function getSubscriptionUsage(): Promise<{
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("load subscription usage");
   if (!supabase || !userId) {
+    if (!isDemoDataEnabled()) throw backendUnavailableError("Subscription usage");
     const entitlements = computeEntitlements(mockCurrentProfile);
     return { plan: mockCurrentProfile.plan, subscription: null, entitlements };
   }

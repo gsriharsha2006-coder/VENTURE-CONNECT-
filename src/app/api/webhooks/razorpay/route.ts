@@ -14,8 +14,8 @@ export async function POST(request: Request) {
   const supabase = createServiceClient();
   if (!supabase) {
     return NextResponse.json(
-      { received: true, mode: "mock-fallback", message: "Supabase is not configured; Razorpay persistence is not active." },
-      { status: 202 }
+      { error: "Payment event persistence is unavailable." },
+      { status: 503 }
     );
   }
 

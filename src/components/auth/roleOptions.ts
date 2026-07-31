@@ -1,11 +1,7 @@
 import {
-  Banknote,
   Building2,
-  CalendarRange,
-  GraduationCap,
   Rocket,
-  ShieldCheck,
-  Wrench
+  ShieldCheck
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { UserRole } from "@/lib/types";
@@ -18,13 +14,9 @@ export type RoleOption = {
 };
 
 export const roleOptions: RoleOption[] = [
-  { role: "Founder", title: "Founder", description: "Build documents, validate ideas, and apply to opportunities.", icon: Rocket },
-  { role: "Investor", title: "Investor", description: "Review structured startup applications and signal interest.", icon: Banknote },
-  { role: "Incubator", title: "Incubator", description: "Publish programs and evaluate founder applications.", icon: GraduationCap },
-  { role: "Validator", title: "Validator", description: "Review Idea Workspace documents after verification.", icon: ShieldCheck },
-  { role: "Hackathon Organizer", title: "Hackathon organizer", description: "Publish hackathons and manage external registrations.", icon: CalendarRange },
-  { role: "Event Organizer", title: "Event organizer", description: "Run startup events, grants, and competitions.", icon: Building2 },
-  { role: "Service Provider", title: "Service provider", description: "Offer approved professional services to founders.", icon: Wrench }
+  { role: "Founder", title: "Founder", description: "Structure an idea, prepare documents, and track applications.", icon: Rocket },
+  { role: "Validator", title: "Validator", description: "Review assigned founder documents after identity approval.", icon: ShieldCheck },
+  { role: "Incubator", title: "Institution", description: "Publish programmes or review applications for an organisation.", icon: Building2 }
 ];
 
 export function companyLabel(role: UserRole) {

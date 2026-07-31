@@ -16,7 +16,7 @@ export default function ValidatorProfileManagementPage() {
     return (
       <ValidationEmptyState
         title="No validator profile is available."
-        description="A profile will appear after administrator approval. Development fixtures require ENABLE_DEMO_DATA=true."
+        description="A profile will appear after administrator approval and account data is connected."
       />
     );
   }

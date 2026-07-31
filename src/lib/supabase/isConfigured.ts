@@ -1,7 +1,7 @@
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 const SUPABASE_WARNING =
-  "Supabase is not configured. Venture Connect is running with mock/demo data. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to enable Supabase (NEXT_PUBLIC_SUPABASE_ANON_KEY is temporarily supported).";
+  "Supabase is not configured. Public routes remain available, while account data and protected actions are disabled. Configure the public URL and publishable key to enable authentication.";
 
 let warned = false;
 

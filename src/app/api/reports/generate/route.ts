@@ -4,6 +4,7 @@ import { getAIProvider, AIProviderError } from "@/lib/aiProvider";
 import { isReportType, isStoredVcReportContent } from "@/lib/ai/reportSchema";
 import { canGenerateReport, normalizeSubscriptionPlan } from "@/lib/subscription/plans";
 import { completionPercent } from "@/lib/templates";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
 import type { Profile, ReportType, SubscriptionPlan, WorkspaceTemplate } from "@/lib/types";
 
@@ -180,7 +181,7 @@ export async function POST(request: Request) {
     const body = await parseRequest(request);
 
     if (!isSupabaseConfigured()) {
-      if (process.env.NODE_ENV !== "development") {
+      if (process.env.NODE_ENV !== "development" || !isDemoDataEnabled()) {
         throw new RequestError(503, "Supabase authentication is required for report generation.");
       }
       if (!body.prototypeWorkspace) throw new RequestError(400, "Prototype workspace data is required in development mode.");
@@ -283,6 +284,9 @@ export async function POST(request: Request) {
 
     try {
       const provider = getAIProvider();
+      if (provider.name === "mock" && !isDemoDataEnabled()) {
+        throw new RequestError(503, "An AI provider must be configured before generating reports.");
+      }
       if (provider.name === "mock") {
         const report = await provider.generateReport({
           workspaceName: workspace.title,

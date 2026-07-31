@@ -1,5 +1,6 @@
-import { getBrowserSupabase, getCurrentUserId, normalizePlan, supabaseDataError } from "@/lib/data/shared";
+import { backendUnavailableError, getBrowserSupabase, getCurrentUserId, normalizePlan, supabaseDataError } from "@/lib/data/shared";
 import { toUserRole } from "@/lib/auth/roles";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import type { Profile } from "@/lib/types";
 
 export const mockCurrentProfile: Profile = {
@@ -21,7 +22,10 @@ export const mockCurrentProfile: Profile = {
 export async function getCurrentProfile(): Promise<Profile> {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("load current profile");
-  if (!supabase || !userId) return mockCurrentProfile;
+  if (!supabase || !userId) {
+    if (isDemoDataEnabled()) return mockCurrentProfile;
+    throw backendUnavailableError("Profile loading");
+  }
 
   const { data, error } = await supabase
     .from("profiles")

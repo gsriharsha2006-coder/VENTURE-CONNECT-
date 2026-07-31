@@ -6,11 +6,13 @@ import { Download, LockKeyhole, Sparkles, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
+import { EmptyState, StatusMessage } from "@/components/ui/FeedbackState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useDemoPlan } from "@/hooks/useDemoPlan";
 import { isStoredVcReportContent } from "@/lib/ai/reportSchema";
 import { ideaWorkspaces as mockIdeaWorkspaces, reportSuite } from "@/lib/data";
+import { isDemoDataEnabled } from "@/lib/demo-data";
 import { getIdeaWorkspaces } from "@/lib/data/ideaWorkspaces";
 import { getGeneratedReports, type ReportHistoryItem } from "@/lib/data/reports";
 import { getSubscriptionUsage } from "@/lib/data/subscriptions";
@@ -27,8 +29,10 @@ type Props = {
 
 export function VcReadinessReportClient({ developmentMode, openaiConfigured }: Props) {
   const supabaseConfigured = isSupabaseConfigured();
-  const [workspaceOptions, setWorkspaceOptions] = useState<IdeaWorkspaceItem[]>(supabaseConfigured ? [] : mockIdeaWorkspaces);
-  const [workspace, setWorkspace] = useState<IdeaWorkspaceItem | null>(supabaseConfigured ? null : mockIdeaWorkspaces[0]);
+  const demoEnabled = isDemoDataEnabled();
+  const initialWorkspaces = demoEnabled ? mockIdeaWorkspaces : [];
+  const [workspaceOptions, setWorkspaceOptions] = useState<IdeaWorkspaceItem[]>(supabaseConfigured ? [] : initialWorkspaces);
+  const [workspace, setWorkspace] = useState<IdeaWorkspaceItem | null>(supabaseConfigured ? null : initialWorkspaces[0] ?? null);
   const [reportType, setReportType] = useState<ReportType>("Basic SWOT Report");
   const [report, setReport] = useState<VcReportContent | null>(null);
   const [history, setHistory] = useState<ReportHistoryItem[]>([]);
@@ -64,6 +68,8 @@ export function VcReadinessReportClient({ developmentMode, openaiConfigured }: P
       };
     }
 
+    if (!demoEnabled) return;
+
     const stored = window.localStorage.getItem("venture-connect-active-workspace");
     if (stored) {
       try {
@@ -85,7 +91,7 @@ export function VcReadinessReportClient({ developmentMode, openaiConfigured }: P
     return () => {
       cancelled = true;
     };
-  }, [supabaseConfigured]);
+  }, [demoEnabled, supabaseConfigured]);
 
   const prototypeProfile = useMemo<Profile>(() => ({
     id: "prototype-founder",
@@ -119,6 +125,27 @@ export function VcReadinessReportClient({ developmentMode, openaiConfigured }: P
     })),
     [entitlements.reportTypes]
   );
+
+  if (!supabaseConfigured && !demoEnabled) {
+    return (
+      <div className="min-w-0 space-y-5">
+        <PageHeader
+          eyebrow="VC Readiness Report"
+          title="Review a completed Idea Workspace document."
+          description="Structured readiness reports use authenticated workspace records and a configured AI provider."
+        />
+        <StatusMessage>
+          Account data is not available in this environment. Report generation has been disabled without substituting sample results.
+        </StatusMessage>
+        <EmptyState
+          icon={LockKeyhole}
+          title="Report workspace unavailable"
+          description="Connect the application backend and sign in to load an eligible Idea Workspace document."
+          action={<Link href="/idea-workspace"><Button variant="secondary">Return to Idea Workspace</Button></Link>}
+        />
+      </div>
+    );
+  }
 
   async function refreshSupabaseReportState() {
     const [savedReports, usage] = await Promise.all([getGeneratedReports(), getSubscriptionUsage()]);
@@ -246,7 +273,7 @@ export function VcReadinessReportClient({ developmentMode, openaiConfigured }: P
         description="Generate structured reports from your selected Idea Workspace document and keep prior results available for comparison."
         actions={
           <>
-            {!supabaseConfigured ? (
+            {demoEnabled && !supabaseConfigured ? (
               <select
                 aria-label="Demo subscription plan"
                 value={demoPlan}
@@ -267,7 +294,7 @@ export function VcReadinessReportClient({ developmentMode, openaiConfigured }: P
       <div aria-label="Report availability" className="flex flex-wrap gap-2">
         <Badge tone={freeAvailable ? "green" : "amber"}>Basic SWOT: {freeAvailable ? "Available" : "Used"}</Badge>
         <Badge tone={entitlements.reportsRemaining > 0 ? "green" : "slate"}>{allowanceLabel}</Badge>
-        <Badge tone={supabaseConfigured ? "green" : "amber"}>{supabaseConfigured ? "Account connected" : "Development preview"}</Badge>
+        <Badge tone={supabaseConfigured ? "green" : "amber"}>{supabaseConfigured ? "Account connected" : "Explicit demo mode"}</Badge>
       </div>
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
