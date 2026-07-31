@@ -3,8 +3,16 @@
 1. Create a Supabase project.
 2. Enable Email/Password authentication.
 3. Run `supabase/schema.sql` in the SQL editor.
-4. Add environment variables from `.env.example`.
-5. Follow `docs/production-supabase-setup.md` for redirect URLs and verification.
+4. Apply every file in `supabase/migrations` in filename order.
+5. Run `supabase/tests/staging_contract.sql` only against a disposable staging project.
+6. Add environment variables from `.env.example`.
+7. Follow `docs/production-supabase-setup.md` for redirect URLs and verification.
+
+Canonical identity:
+- `auth.users.id` authenticates the user.
+- `profiles.id` identifies the person in application-domain tables.
+- `profiles.user_id` is the unique bridge to Auth.
+- RLS resolves ownership through `profiles.user_id = auth.uid()`.
 
 Core model:
 - `profiles` stores role and plan tier.

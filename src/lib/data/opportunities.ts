@@ -171,11 +171,21 @@ export async function createOpportunity(input: {
     };
   }
 
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, role")
+    .eq("user_id", userId)
+    .single();
+  if (profileError || !profile) {
+    throw supabaseDataError("resolve opportunity creator profile", profileError ?? "No profile row returned.");
+  }
+
   const { data, error } = await supabase
     .from("opportunities")
     .insert({
       created_by: userId,
-      creator_role: toDatabaseRole(input.creatorRole ?? "Investor"),
+      created_by_profile_id: profile.id,
+      creator_role: toDatabaseRole(profile.role),
       title: input.title,
       organizer_name: input.organizerName ?? "Supabase organizer",
       opportunity_type: input.type,

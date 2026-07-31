@@ -27,7 +27,7 @@ in shell history, screenshots, fixtures, or repository files.
 | Founder B | `founder` | Cross-user privacy and realtime leakage checks |
 | Validator | `validator` | Pending-to-approved validation workflow |
 | Organiser | `incubator` | Organisation and opportunity workflow |
-| Reviewer | Future reviewer membership | Assigned-review restrictions |
+| Reviewer | Organisation `reviewer` membership | Assigned-review restrictions |
 | Administrator | `admin` | Verification, moderation, configuration, cleanup |
 
 ## Provisioning Procedure
@@ -46,13 +46,18 @@ in shell history, screenshots, fixtures, or repository files.
 The current schema stores one role in `profiles.role`; it does not have `user_roles`.
 Role changes must be made by a trusted admin path and followed by a new session.
 
+`auth.users.id` and `profiles.id` are intentionally different identities.
+`profiles.user_id` must equal the Auth ID, while organisation memberships,
+reviewer assignments, conversations, payment ownership, and audit actors use
+`profiles.id`.
+
 Expected assignments:
 
 ```text
 Founder A/B -> founder
 Validator   -> validator
 Organiser   -> incubator
-Reviewer    -> not representable until reviewer membership is implemented
+Reviewer    -> founder or organiser profile plus organisation reviewer membership
 Admin       -> admin
 ```
 
@@ -61,17 +66,19 @@ Do not update role metadata from a browser client. Verify the
 
 ## Organisation Membership
 
-Blocked in the current active schema. Before staging verification, add:
+After applying `202607300001_database_contract_and_identity.sql`:
 
-- `organisations`
-- `organisation_memberships`
-- membership roles such as owner, admin, reviewer
-- invitation/acceptance state
-- verified organisation status
-- RLS that scopes opportunities, applications, and reviews to active membership
+1. Create one staging `organisations` row with the organiser profile as
+   `created_by_profile_id`.
+2. Add an active `organisation_members` owner row for that organiser profile.
+3. Add the reviewer profile as an active `reviewer`.
+4. Create a second unrelated organisation for negative tests.
+5. Confirm the reviewer can read only explicitly assigned applications from the
+   first organisation.
+6. Confirm neither the organiser nor reviewer can read the unrelated organisation.
 
-After implementation, create one staging organisation, make the organiser its owner,
-and assign the reviewer only to that organisation.
+The UI/API for membership administration is not complete, so initial staging setup
+must use a reviewed server-only helper or the Supabase dashboard.
 
 ## Validator Verification
 
@@ -102,7 +109,7 @@ After assignment:
 1. Stop browser and integration test runners.
 2. Delete test-owned storage objects first.
 3. Delete payment/webhook test events and domain rows in foreign-key order.
-4. Delete organisation memberships and organisations.
+4. Delete `organisation_members` rows and then `organisations`.
 5. Delete auth users through the Supabase Admin API so cascade rules execute.
 6. Confirm no rows remain for the run ID or test user UUIDs.
 7. Revoke any temporary test tokens and rotate keys if they were exposed.

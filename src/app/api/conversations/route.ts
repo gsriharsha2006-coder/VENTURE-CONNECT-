@@ -1,39 +1,57 @@
 import { NextResponse } from "next/server";
+import { AuthorizationError, requireProfile } from "@/lib/auth/server";
+import { toUserRole } from "@/lib/auth/roles";
 import { canAccessMessaging } from "@/lib/subscription/plans";
-import { createServiceClient, getAuthUser } from "@/lib/supabase/server";
+import { normalizeSubscriptionPlan } from "@/lib/subscription/plans";
 
 export async function GET() {
-  const user = await getAuthUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const { profile, supabase } = await requireProfile();
+    if (!canAccessMessaging({
+      id: profile.id,
+      user_id: profile.user_id,
+      full_name: profile.full_name ?? "Member",
+      email: profile.email ?? "",
+      role: toUserRole(profile.role),
+      plan: normalizeSubscriptionPlan(profile.plan),
+      free_report_used: false,
+      reports_used_this_month: 0
+    })) {
+      return NextResponse.json(
+        { error: "Messaging requires Student Pro or Founder Pro after reviewer interest", conversations: [] },
+        { status: 403 }
+      );
+    }
 
-  const supabase = createServiceClient();
-  if (!supabase) return NextResponse.json({ conversations: [], mode: "mock-fallback" });
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-  if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    const { data, error } = await supabase
+      .from("conversation_members")
+      .select(`
+        conversation_id,
+        member_role,
+        last_read_at,
+        conversation:conversations(
+          id,
+          application_id,
+          validation_booking_id,
+          programme_context_id,
+          organisation_id,
+          context_type,
+          authorization_reason,
+          status,
+          created_at,
+          updated_at
+        )
+      `)
+      .eq("profile_id", profile.id)
+      .eq("status", "active")
+      .order("updated_at", { referencedTable: "conversations", ascending: false });
 
-  if (!canAccessMessaging(profile)) {
-    return NextResponse.json({ error: "Messaging requires Student Pro or Founder Pro after reviewer interest", conversations: [] }, { status: 403 });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ conversations: data ?? [] });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    return NextResponse.json({ error: "Unable to load conversations." }, { status: 500 });
   }
-
-  const isInvestor = profile.role === "Investor";
-  const query = supabase
-    .from("conversations")
-    .select(`
-      *,
-      founder:profiles!conversations_founder_id_fkey(id, full_name, email, avatar_url),
-      investor:profiles!conversations_investor_id_fkey(id, full_name, email, avatar_url),
-      workspace:idea_workspaces!conversations_startup_idea_id_fkey(id, title)
-    `)
-    .order("updated_at", { ascending: false });
-
-  if (isInvestor) {
-    query.eq("investor_id", user.id);
-  } else {
-    query.eq("founder_id", user.id);
-  }
-
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  return NextResponse.json({ conversations: data });
 }

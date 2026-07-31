@@ -37,7 +37,7 @@ export async function POST(request: Request) {
           .single();
 
         if (subscription) {
-          await supabase.from("profiles").update({ plan }).eq("id", subscription.user_id);
+          await supabase.from("profiles").update({ plan }).eq("user_id", subscription.user_id);
         }
       }
       break;
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
           .single();
 
         if (subscription) {
-          await supabase.from("profiles").update({ plan: "Free" }).eq("id", subscription.user_id);
+          await supabase.from("profiles").update({ plan: "Free" }).eq("user_id", subscription.user_id);
         }
       }
       break;

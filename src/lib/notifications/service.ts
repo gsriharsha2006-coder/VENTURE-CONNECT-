@@ -2,7 +2,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import type { NotificationType } from "@/lib/types";
 
 export async function createNotification(params: {
-  userId: string;
+  profileId: string;
   type: NotificationType;
   title: string;
   body: string;
@@ -13,7 +13,7 @@ export async function createNotification(params: {
   if (!supabase) {
     return {
       id: `notification-${Date.now()}`,
-      user_id: params.userId,
+      profile_id: params.profileId,
       type: params.type,
       title: params.title,
       body: params.body,
@@ -21,12 +21,21 @@ export async function createNotification(params: {
       mode: "mock-fallback"
     };
   }
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, user_id, email")
+    .eq("id", params.profileId)
+    .single();
+  if (profileError || !profile) throw profileError ?? new Error("Notification recipient profile not found.");
+
   const { data, error } = await supabase
     .from("notifications")
     .insert({
-      user_id: params.userId,
+      user_id: profile.user_id,
+      profile_id: profile.id,
       type: params.type,
       title: params.title,
+      message: params.body,
       body: params.body,
       metadata: params.metadata ?? {}
     })
@@ -36,18 +45,15 @@ export async function createNotification(params: {
   if (error) throw error;
 
   if (params.sendEmail && process.env.RESEND_API_KEY) {
-    await sendEmailNotification(params.userId, params.title, params.body);
+    await sendEmailNotification(profile.email, params.title, params.body);
     await supabase.from("notifications").update({ email_sent: true }).eq("id", data.id);
   }
 
   return data;
 }
 
-async function sendEmailNotification(userId: string, title: string, body: string) {
-  const supabase = createServiceClient();
-  if (!supabase) return;
-  const { data: profile } = await supabase.from("profiles").select("email").eq("id", userId).single();
-  if (!profile?.email) return;
+async function sendEmailNotification(email: string | null, title: string, body: string) {
+  if (!email) return;
 
   await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -57,7 +63,7 @@ async function sendEmailNotification(userId: string, title: string, body: string
     },
     body: JSON.stringify({
       from: process.env.EMAIL_FROM || "Venture Connect <noreply@ventureconnect.app>",
-      to: profile.email,
+      to: email,
       subject: title,
       html: `<p>${body}</p>`
     })
@@ -65,19 +71,23 @@ async function sendEmailNotification(userId: string, title: string, body: string
 }
 
 export async function auditLog(
-  userId: string | null,
+  actingAuthUserId: string | null,
+  actingProfileId: string | null,
   action: string,
-  resourceType: string,
-  resourceId?: string,
+  entityType: string,
+  entityId?: string,
+  organisationId?: string,
   metadata?: Record<string, unknown>
 ) {
   const supabase = createServiceClient();
   if (!supabase) return;
   await supabase.from("audit_logs").insert({
-    user_id: userId,
+    acting_auth_user_id: actingAuthUserId,
+    acting_profile_id: actingProfileId,
     action,
-    resource_type: resourceType,
-    resource_id: resourceId,
-    metadata: metadata ?? {}
+    entity_type: entityType,
+    entity_id: entityId,
+    organisation_id: organisationId,
+    safe_metadata: metadata ?? {}
   });
 }

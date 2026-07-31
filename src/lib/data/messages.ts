@@ -34,27 +34,14 @@ export async function createInterestedConversation(input: {
     };
   }
 
-  const { error: applicationError } = await supabase
-    .from("applications")
-    .update({ status: "interested", reviewed_at: new Date().toISOString() })
-    .eq("id", input.applicationId);
-  if (applicationError) throw supabaseDataError("mark application interested", applicationError);
-
-  const { data, error } = await supabase
-    .from("messages")
-    .insert({
-      application_id: input.applicationId,
-      sender_id: userId,
-      receiver_id: input.receiverId ?? null,
-      body: input.body ?? "Marked Interested. Conversation opened.",
-      meeting_link: input.meetingLink ?? null,
-      meeting_time: input.meetingTime ?? null,
-      is_locked_for_free_user: input.lockedForFreeUser ?? false
-    })
-    .select()
-    .single();
-
-  if (error || !data) throw supabaseDataError("create interested conversation", error ?? "No row returned.");
-
-  return data;
+  const response = await fetch(`/api/submissions/${encodeURIComponent(input.applicationId)}/action`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "interested" })
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    throw supabaseDataError("create interested conversation", result.error ?? `Request failed with ${response.status}.`);
+  }
+  return result.conversation;
 }

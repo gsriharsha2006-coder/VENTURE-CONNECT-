@@ -89,10 +89,35 @@ For a new Supabase project, apply the baseline schema and migrations in order:
 3. `supabase/migrations/202607130002_openai_vc_report_provider.sql`
 4. `supabase/migrations/202607280001_validation_hub.sql`
 5. `supabase/migrations/202607280002_opportunity_application_methods.sql`
+6. `supabase/migrations/202607300001_database_contract_and_identity.sql`
 
 Review migration output before applying it to an existing database. The repository
 also contains historical schema snapshots; do not apply them on top of the baseline
 without reconciling them first.
+
+Use the Supabase CLI for repeatable staging migration application and inspection.
+After migration, run `supabase/tests/staging_contract.sql` against staging and review
+any legacy rows whose new profile-ID backfill remains null. Do not infer profile
+ownership when a legacy Auth ID has no unique profile match.
+
+### Identity Model
+
+- `auth.users.id` is the Supabase authentication identity.
+- `profiles.id` is the Venture Connect application-domain profile ID.
+- `profiles.user_id` is a required, unique foreign key to `auth.users.id`.
+- New domain relationships use `profiles.id`.
+- RLS resolves the signed-in profile with `profiles.user_id = auth.uid()`.
+- Legacy columns such as `applications.founder_id` continue to store Auth IDs until
+  a separately verified compatibility migration can remove them.
+
+Server routes must use the helpers in `src/lib/auth/server.ts` instead of comparing
+an Auth user ID directly with `profiles.id`.
+
+The identity migration adds organisations and memberships, organiser-defined
+opportunity forms, reviewer assignments and reviews, explicit conversation
+participants, private attachment metadata, payment/event storage contracts, and
+append-oriented audit logs. Payment and audit tables intentionally expose no
+authenticated client policies.
 
 Create private Storage buckets for founder documents, applications, validation
 documents, message attachments, and report PDFs. Production policies must restrict
@@ -105,12 +130,13 @@ admin access from an email domain in production.
 
 ## Razorpay Test Setup
 
-Use Razorpay test-mode keys and matching test plan IDs. Configure the webhook endpoint
-as `/api/webhooks/razorpay`, set `RAZORPAY_WEBHOOK_SECRET`, and subscribe only to the
-events handled by the route. Paid access is activated from verified server-side
-events, never from the browser checkout callback.
+The current migration provides payment and payment-event storage only. It does not
+activate subscriptions, reports, or validation bookings. Do not enable a live
+Razorpay workflow until the webhook route uses the new idempotent event contract and
+all fulfilment happens only after a verified server-side event.
 
-Before live mode, verify duplicate webhook delivery, failed payment, cancellation,
+When that remediation is complete, use test-mode keys and plan IDs, configure
+`/api/webhooks/razorpay`, and verify duplicate delivery, failure, cancellation,
 refund, and dispute behavior against a staging database.
 
 ## AI Provider Setup
@@ -129,9 +155,11 @@ npm run test
 npm run build
 ```
 
-The current unit suite covers role routing, plan limits, opportunity application
-defaults and URL safety, participant messaging permissions, Razorpay signatures, and
-structured AI report validation.
+The current unit suite covers identity resolution, organisation/reviewer boundaries,
+founder conversation restrictions, schema migration contracts, role routing, plan
+limits, opportunity URL safety, Razorpay signatures, and structured AI report
+validation. These offline tests inspect code and migration text; they do not prove
+that a deployed Supabase project enforces RLS.
 
 ## Deployment
 
@@ -155,10 +183,10 @@ structured AI report validation.
 
 - Several catalogue and dashboard surfaces still use clearly bounded local seed or
   browser state when Supabase is unavailable.
-- The complete organiser custom-form builder and immutable production submission
-  workflow need further server integration.
-- Validator orders, refunds, disputes, invoices, and all payment-event idempotency
-  paths need end-to-end staging verification.
-- Storage policy coverage and RLS assumptions do not yet have automated database tests.
+- Organisation, custom-form, reviewer, and conversation schemas now exist, but their
+  complete product workflows still need server integration and live RLS verification.
+- The payment/event schema is storage-only. Razorpay fulfilment, refunds, disputes,
+  invoices, and webhook idempotency still require implementation and staging tests.
+- Private Storage bucket policies and live database RLS checks remain unverified.
 - Full browser workflows for founder, organiser, and validator journeys are not yet
   included in the automated test suite.

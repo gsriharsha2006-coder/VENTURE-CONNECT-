@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { AuthorizationError, requireRole } from "@/lib/auth/server";
 import { getAIProvider, AIProviderError } from "@/lib/aiProvider";
 import { isReportType, isStoredVcReportContent } from "@/lib/ai/reportSchema";
 import { canGenerateReport, normalizeSubscriptionPlan } from "@/lib/subscription/plans";
 import { completionPercent } from "@/lib/templates";
-import { createServerSupabase, isSupabaseConfigured } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/server";
 import type { Profile, ReportType, SubscriptionPlan, WorkspaceTemplate } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -234,27 +235,17 @@ export async function POST(request: Request) {
       throw new RequestError(400, "A valid Supabase Idea Workspace ID is required.");
     }
 
-    const supabase = await createServerSupabase();
-    if (!supabase) throw new RequestError(503, "Supabase is not configured.");
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError || !authData.user) throw new RequestError(401, "Log in as a founder to generate a VC Readiness Report.");
-    const user = authData.user;
-
-    const [{ data: profile, error: profileError }, { data: subscription, error: subscriptionError }, { data: workspace, error: workspaceError }] = await Promise.all([
-      supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
-      supabase.from("subscriptions").select("*").eq("user_id", user.id).order("started_at", { ascending: false }).limit(1).maybeSingle(),
+    const { authUserId, profile, supabase } = await requireRole(["founder"]);
+    const [{ data: subscription, error: subscriptionError }, { data: workspace, error: workspaceError }] = await Promise.all([
+      supabase.from("subscriptions").select("*").eq("user_id", authUserId).order("started_at", { ascending: false }).limit(1).maybeSingle(),
       supabase
         .from("idea_workspaces")
         .select("id, founder_id, title, template_type, sections_json, completion_percentage, status, archived")
         .eq("id", body.workspaceId)
-        .eq("founder_id", user.id)
+        .eq("founder_id", authUserId)
         .maybeSingle()
     ]);
 
-    if (profileError) throw new RequestError(500, "Could not load the founder profile.");
-    if (!profile || String(profile.role).toLowerCase() !== "founder") {
-      throw new RequestError(403, "Only founder accounts can generate VC Readiness Reports.");
-    }
     if (subscriptionError) throw new RequestError(500, "Could not load report allowance.");
     if (workspaceError || !workspace || workspace.archived) throw new RequestError(404, "Idea Workspace document not found.");
 
@@ -271,10 +262,10 @@ export async function POST(request: Request) {
     const reportsUsed = usageMonth && usageMonth !== currentUsageMonth() ? 0 : Number(subscription?.report_count_used ?? 0);
     const typedProfile: Profile = {
       id: profile.id,
-      user_id: user.id,
+      user_id: authUserId,
       full_name: profile.full_name ?? "Founder",
       company_name: profile.company_name ?? undefined,
-      email: profile.email ?? user.email ?? "",
+      email: profile.email ?? "",
       role: "Founder",
       plan,
       free_report_used: Boolean(subscription?.free_swot_used),
@@ -284,7 +275,7 @@ export async function POST(request: Request) {
     const allowed = canGenerateReport(typedProfile, body.reportType);
     if (!allowed.allowed) throw new RequestError(403, allowed.reason ?? "This report is not available on the current plan.");
 
-    const identity = `user:${user.id}`;
+    const identity = `user:${authUserId}`;
     enforceRateLimit(identity);
     const inFlightKey = `${identity}:${body.requestId}`;
     if (runtimeState.inFlight.has(inFlightKey)) throw new RequestError(409, "This report is already being generated.");
@@ -329,7 +320,7 @@ export async function POST(request: Request) {
           .from("vc_reports")
           .select("*")
           .eq("id", existingReportId)
-          .eq("founder_id", user.id)
+          .eq("founder_id", authUserId)
           .maybeSingle();
         if (existingError || !existingReport || !isStoredVcReportContent(existingReport.report_content)) {
           throw new RequestError(500, "The completed report could not be loaded.");
@@ -387,6 +378,7 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     if (error instanceof RequestError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof AuthorizationError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof AIProviderError) return providerErrorResponse(error);
     return NextResponse.json({ error: "VC Readiness Report generation failed." }, { status: 500 });
   }

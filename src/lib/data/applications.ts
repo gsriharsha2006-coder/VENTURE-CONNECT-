@@ -55,11 +55,24 @@ export async function applyToOpportunity(input: {
     };
   }
 
+  const [{ data: profile, error: profileError }, { data: opportunity, error: opportunityError }] = await Promise.all([
+    supabase.from("profiles").select("id").eq("user_id", userId).single(),
+    supabase.from("opportunities").select("organisation_id").eq("id", input.opportunityId).single()
+  ]);
+  if (profileError || !profile) {
+    throw supabaseDataError("resolve founder profile", profileError ?? "No profile row returned.");
+  }
+  if (opportunityError || !opportunity) {
+    throw supabaseDataError("resolve opportunity organisation", opportunityError ?? "No opportunity row returned.");
+  }
+
   const { data, error } = await supabase
     .from("applications")
     .insert({
       founder_id: userId,
+      founder_profile_id: profile.id,
       opportunity_id: input.opportunityId,
+      organisation_id: opportunity.organisation_id,
       idea_workspace_id: input.ideaWorkspaceId,
       status: "submitted"
     })
