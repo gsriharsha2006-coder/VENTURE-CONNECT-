@@ -16,9 +16,7 @@ type RegistrationStep = "role" | "details";
 type StatusTone = "info" | "success" | "error";
 const institutionRoles: Array<{ value: UserRole; label: string }> = [
   { value: "Incubator", label: "Incubator or college programme" },
-  { value: "Investor", label: "Investor or venture team" },
-  { value: "Hackathon Organizer", label: "Hackathon organiser" },
-  { value: "Event Organizer", label: "Startup event organiser" }
+  { value: "Hackathon Organizer", label: "Hackathon organiser" }
 ];
 
 export default function RegisterPage() {

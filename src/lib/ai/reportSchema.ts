@@ -30,13 +30,16 @@ type ReportPayloadBase<T extends ReportType> = {
 
 export type BasicSwotReportPayload = ReportPayloadBase<"Basic SWOT Report"> & {
   executiveSummary: string;
+  problemClarity: number;
+  solutionClarity: number;
+  customerClarity: number;
+  validationLevel: number;
+  businessModelClarity: number;
+  teamReadiness: number;
   strengths: string[];
   weaknesses: string[];
-  opportunities: string[];
-  threats: string[];
-  validationScore: number;
   priorityActions: string[];
-  readinessStatus: FinalRecommendation;
+  disclaimer: string;
 };
 
 export type PremiumSwotReportPayload = ReportPayloadBase<"Premium SWOT Analysis"> & {
@@ -127,13 +130,16 @@ const stringListSchema = { type: "array", items: textSchema, minItems: 1, maxIte
 const reportFields: Record<ReportType, Record<string, unknown>> = {
   "Basic SWOT Report": {
     executiveSummary: textSchema,
+    problemClarity: scoreSchema,
+    solutionClarity: scoreSchema,
+    customerClarity: scoreSchema,
+    validationLevel: scoreSchema,
+    businessModelClarity: scoreSchema,
+    teamReadiness: scoreSchema,
     strengths: stringListSchema,
     weaknesses: stringListSchema,
-    opportunities: stringListSchema,
-    threats: stringListSchema,
-    validationScore: scoreSchema,
     priorityActions: stringListSchema,
-    readinessStatus: { type: "string", enum: FINAL_RECOMMENDATIONS }
+    disclaimer: textSchema
   },
   "Premium SWOT Analysis": {
     detailedStrengths: stringListSchema,
@@ -288,13 +294,16 @@ export function validateStructuredReportPayload(value: unknown, expectedType: Re
         ...base,
         reportType: expectedType,
         executiveSummary: readString(record, "executiveSummary"),
+        problemClarity: readScore(record, "problemClarity"),
+        solutionClarity: readScore(record, "solutionClarity"),
+        customerClarity: readScore(record, "customerClarity"),
+        validationLevel: readScore(record, "validationLevel"),
+        businessModelClarity: readScore(record, "businessModelClarity"),
+        teamReadiness: readScore(record, "teamReadiness"),
         strengths: readList(record, "strengths"),
         weaknesses: readList(record, "weaknesses"),
-        opportunities: readList(record, "opportunities"),
-        threats: readList(record, "threats"),
-        validationScore: readScore(record, "validationScore"),
         priorityActions: readList(record, "priorityActions"),
-        readinessStatus: readFinalRecommendation(record, "readinessStatus")
+        disclaimer: readString(record, "disclaimer")
       };
     case "Premium SWOT Analysis":
       return {
@@ -411,11 +420,15 @@ export function toVcReportContent(payload: StructuredReportPayload): VcReportCon
       summary = payload.executiveSummary;
       suggestions = payload.priorityActions;
       sections = [
+        section("Problem clarity", undefined, undefined, payload.problemClarity),
+        section("Solution clarity", undefined, undefined, payload.solutionClarity),
+        section("Customer clarity", undefined, undefined, payload.customerClarity),
+        section("Validation level", undefined, undefined, payload.validationLevel),
+        section("Business-model clarity", undefined, undefined, payload.businessModelClarity),
+        section("Team readiness", undefined, undefined, payload.teamReadiness),
         section("Strengths", undefined, payload.strengths),
         section("Weaknesses", undefined, payload.weaknesses),
-        section("Opportunities", undefined, payload.opportunities),
-        section("Threats", undefined, payload.threats),
-        section("Validation", payload.readinessStatus, undefined, payload.validationScore)
+        section("Disclaimer", payload.disclaimer)
       ];
       break;
     case "Premium SWOT Analysis":

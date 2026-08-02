@@ -1,4 +1,4 @@
-import { opportunities as mockOpportunities } from "@/lib/data";
+import { pilotDemoOpportunities } from "@/lib/pilot/demo-data";
 import { backendUnavailableError, getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
 import { isDemoDataEnabled } from "@/lib/demo-data";
 import { toDatabaseRole, toUserRole } from "@/lib/auth/roles";
@@ -8,6 +8,7 @@ import {
   validateExternalRegistrationUrl
 } from "@/lib/opportunities/application-methods";
 import type { ApplicationMethod, DomainTag, Opportunity, OpportunityMode, OpportunityType, StartupStage, UserRole } from "@/lib/types";
+import { isPilotOpportunityType } from "@/lib/pilot/config";
 
 function normalizeType(value?: string | null): OpportunityType {
   const fallback: OpportunityType = "Investor opportunity";
@@ -128,11 +129,13 @@ export function opportunityFromRow(row: {
 
 export async function getOpportunities(): Promise<Opportunity[]> {
   const supabase = getBrowserSupabase();
-  if (!supabase) return isDemoDataEnabled() ? mockOpportunities : [];
+  if (!supabase) return isDemoDataEnabled() ? pilotDemoOpportunities : [];
 
   const { data, error } = await supabase
     .from("opportunities")
     .select("*")
+    .in("opportunity_type", ["Incubator program", "Hackathon"])
+    .eq("status", "published")
     .order("created_at", { ascending: false });
 
   if (error) throw supabaseDataError("list opportunities", error);
@@ -154,6 +157,9 @@ export async function createOpportunity(input: {
   applicationInstructions?: string;
   directApplicationPartner?: boolean;
 }) {
+  if (!isPilotOpportunityType(input.type)) {
+    throw new Error("The pilot supports only incubation programs and hackathons.");
+  }
   const applicationMethod = input.applicationMethod ?? defaultApplicationMethodForType(input.type);
   if (applicationMethodNeedsExternalUrl(applicationMethod)) {
     const externalUrl = validateExternalRegistrationUrl(input.externalLink);

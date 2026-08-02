@@ -4,10 +4,10 @@ import { VentureLogo } from "@/components/brand/VentureLogo";
 import { Button } from "@/components/ui/Button";
 
 const navigation = [
-  { href: "/#workflow", label: "How it works" },
-  { href: "/validators", label: "Validators" },
+  { href: "/#workflow", label: "Pilot workflow" },
+  { href: "/#founder-features", label: "Founder features" },
   { href: "/#opportunities", label: "Opportunities" },
-  { href: "/pricing", label: "Pricing" }
+  { href: "/#organisations", label: "For organisations" }
 ];
 
 export function PublicHeader() {

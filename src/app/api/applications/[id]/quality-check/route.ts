@@ -11,8 +11,7 @@ export const runtime = "nodejs";
 
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const MAX_CHECKS_PER_WINDOW = 5;
-const MAX_APPLICATION_CHECKS_PER_DAY = 20;
-const MAX_ACCOUNT_CHECKS_PER_DAY = 50;
+const MAX_APPLICATION_CHECKS = 2;
 const CORE_PITCH_FIELDS = [
   "startupName", "founderName", "sector", "startupStage", "founderLocation",
   "problem", "solution", "targetCustomer", "marketOpportunity", "businessModel",
@@ -36,7 +35,7 @@ function fingerprint(draft: ApplicationDraft) {
 }
 
 function deriveStatus(score: number, contradictions: string[]): QualityCheckStatus {
-  if (contradictions.length) return "manual_review_required";
+  if (contradictions.length) return "manual_review";
   if (score >= 70) return "ready_to_submit";
   if (score >= 45) return "needs_revision";
   return "incomplete";
@@ -104,17 +103,13 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     }
 
     enforceRateLimit(profile.id);
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const [{ count: dailyChecks, error: countError }, { count: accountChecks, error: accountCountError }] = await Promise.all([
-      serviceDb.from("application_quality_checks").select("id", { count: "exact", head: true }).eq("application_id", application.id).gte("checked_at", oneDayAgo),
-      serviceDb.from("application_quality_checks").select("id", { count: "exact", head: true }).eq("founder_profile_id", profile.id).gte("checked_at", oneDayAgo)
-    ]);
-    if (countError || accountCountError) throw new Error("Application Quality Check usage could not be verified.");
-    if ((dailyChecks ?? 0) >= MAX_APPLICATION_CHECKS_PER_DAY) {
-      throw new AuthorizationError(429, "This application has reached its daily quality-check limit.");
-    }
-    if ((accountChecks ?? 0) >= MAX_ACCOUNT_CHECKS_PER_DAY) {
-      throw new AuthorizationError(429, "This account has reached its daily quality-check limit.");
+    const { count: applicationChecks, error: countError } = await serviceDb
+      .from("application_quality_checks")
+      .select("id", { count: "exact", head: true })
+      .eq("application_id", application.id);
+    if (countError) throw new Error("Application Quality Check usage could not be verified.");
+    if ((applicationChecks ?? 0) >= MAX_APPLICATION_CHECKS) {
+      throw new AuthorizationError(429, "This pilot application has used its initial quality check and one recheck.");
     }
 
     async function saveResult(result: Record<string, unknown>, model: string | null, usage: unknown) {
@@ -149,6 +144,11 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
         .eq("id", applicationRecord.id)
         .eq("founder_profile_id", profile.id);
       if (applicationUpdateError) throw new Error("Application quality status could not be updated.");
+      await serviceDb.from("pilot_events").insert({
+        profile_id: profile.id,
+        event_name: result.status === "ready_to_submit" ? "quality_check_passed" : "quality_check_failed",
+        metadata: { applicationId: applicationRecord.id, status: result.status, score: result.qualityScore }
+      });
     }
 
     if (!deterministic.semanticReviewRequired) {

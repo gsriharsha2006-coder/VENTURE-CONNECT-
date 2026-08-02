@@ -25,6 +25,7 @@ import {
   isExternallyManagedApplication
 } from "@/lib/opportunities/application-methods";
 import type { ExternalRegistrationStatus, Opportunity } from "@/lib/types";
+import { recordPilotEvent } from "@/lib/pilot/events";
 
 const trackingStatuses: ExternalRegistrationStatus[] = [
   "Not Started",
@@ -73,11 +74,11 @@ export function OpportunityApplicationPanel({ opportunity }: { opportunity: Oppo
   const [teamName, setTeamName] = useState(initialRegistration?.team_name ?? "");
   const [submissionDate, setSubmissionDate] = useState(initialRegistration?.submission_date ?? "");
   const [notes, setNotes] = useState(initialRegistration?.notes ?? "");
-  const [confirmationFileName, setConfirmationFileName] = useState(initialRegistration?.confirmation_file_name ?? "");
 
   useEffect(() => {
     void recordOpportunityEvent({ opportunityId: opportunity.id, eventType: "opportunity_viewed", referralSource: "opportunity_details" });
-  }, [opportunity.id]);
+    if (opportunity.opportunity_type === "Hackathon") void recordPilotEvent("hackathon_viewed", { opportunityId: opportunity.id });
+  }, [opportunity.id, opportunity.opportunity_type]);
 
   async function setExternalStatus(status: ExternalRegistrationStatus) {
     setRegistrationStatus(status);
@@ -89,8 +90,7 @@ export function OpportunityApplicationPanel({ opportunity }: { opportunity: Oppo
       externalApplicationId: externalApplicationId || undefined,
       teamName: teamName || undefined,
       submissionDate: submissionDate || undefined,
-      notes: notes || undefined,
-      confirmationFileName: confirmationFileName || undefined
+      notes: notes || undefined
     });
   }
 
@@ -104,6 +104,7 @@ export function OpportunityApplicationPanel({ opportunity }: { opportunity: Oppo
       referralSource: "opportunity_details"
     });
     await setExternalStatus("Registration Opened");
+    await recordPilotEvent("hackathon_application_started", { opportunityId: opportunity.id, method: "external" });
     setNotice(`Registration opened on ${destination.domain}. Return here to mark it as applied.`);
   }
 
@@ -144,6 +145,7 @@ export function OpportunityApplicationPanel({ opportunity }: { opportunity: Oppo
                 setTrackingOpen(nextOpen);
                 if (nextOpen && registrationStatus !== "Applied Externally") {
                   void setExternalStatus("Applied Externally");
+                  void recordPilotEvent("external_hackathon_marked_applied", { opportunityId: opportunity.id });
                   setNotice("Marked as applied and saved as a founder-tracked status.");
                 }
               }}
@@ -156,9 +158,9 @@ export function OpportunityApplicationPanel({ opportunity }: { opportunity: Oppo
           <>
             <h2 className="mt-4 text-xl font-semibold text-slate-950">Register with the organiser form</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Complete the organiser-created registration form inside Venture Connect. This event flow does not use Idea Workspace or Application Quality Check.
+              Complete the organiser-created registration form inside Venture Connect. This hackathon flow does not use Idea Workspace or Application Quality Check.
             </p>
-            <Link href={`/dashboard/opportunities/${opportunity.id}/register`}>
+            <Link href={`/dashboard/opportunities/${opportunity.id}/register`} onClick={() => void recordPilotEvent("hackathon_application_started", { opportunityId: opportunity.id, method: "internal" })}>
               <Button className="mt-5 w-full">Start registration</Button>
             </Link>
           </>
@@ -194,10 +196,6 @@ export function OpportunityApplicationPanel({ opportunity }: { opportunity: Oppo
               <input value={externalApplicationId} onChange={(event) => setExternalApplicationId(event.target.value)} placeholder="External application ID (optional)" className="h-10 rounded-lg border border-slate-200 px-3 text-sm" />
               <input value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder="Team name (optional)" className="h-10 rounded-lg border border-slate-200 px-3 text-sm" />
               <input type="date" value={submissionDate} onChange={(event) => setSubmissionDate(event.target.value)} aria-label="Submission date" className="h-10 rounded-lg border border-slate-200 px-3 text-sm" />
-              <label className="flex h-10 cursor-pointer items-center rounded-lg border border-slate-200 px-3 text-sm text-slate-600">
-                <input type="file" accept="image/*,.pdf" className="sr-only" onChange={(event) => setConfirmationFileName(event.target.files?.[0]?.name ?? "")} />
-                {confirmationFileName || "Confirmation file (optional)"}
-              </label>
             </div>
             <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="Private tracking notes (optional)" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
             <Button

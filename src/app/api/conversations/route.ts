@@ -1,28 +1,9 @@
 import { NextResponse } from "next/server";
 import { AuthorizationError, requireProfile } from "@/lib/auth/server";
-import { toUserRole } from "@/lib/auth/roles";
-import { canAccessMessaging } from "@/lib/subscription/plans";
-import { normalizeSubscriptionPlan } from "@/lib/subscription/plans";
 
 export async function GET() {
   try {
     const { profile, supabase } = await requireProfile();
-    if (!canAccessMessaging({
-      id: profile.id,
-      user_id: profile.user_id,
-      full_name: profile.full_name ?? "Member",
-      email: profile.email ?? "",
-      role: toUserRole(profile.role),
-      plan: normalizeSubscriptionPlan(profile.plan),
-      free_report_used: false,
-      reports_used_this_month: 0
-    })) {
-      return NextResponse.json(
-        { error: "Messaging requires Student Pro or Founder Pro after reviewer interest", conversations: [] },
-        { status: 403 }
-      );
-    }
-
     const { data, error } = await supabase
       .from("conversation_members")
       .select(`
@@ -39,7 +20,13 @@ export async function GET() {
           authorization_reason,
           status,
           created_at,
-          updated_at
+          updated_at,
+          application:applications(
+            id,
+            idea_workspace_id,
+            opportunity:opportunities(title, organizer_name),
+            workspace:idea_workspaces(title)
+          )
         )
       `)
       .eq("profile_id", profile.id)

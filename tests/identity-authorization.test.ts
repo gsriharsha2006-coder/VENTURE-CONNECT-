@@ -68,8 +68,8 @@ test("reviewers cannot access applications without a matching active assignment"
 test("founders cannot manually initiate institution conversations", () => {
   assert.equal(canInitiateInstitutionConversation("founder", "interested", true), false);
   assert.equal(canInitiateInstitutionConversation("investor", "submitted", true), false);
-  assert.equal(canInitiateInstitutionConversation("investor", "interested", false), false);
-  assert.equal(canInitiateInstitutionConversation("investor", "interested", true), true);
+  assert.equal(canInitiateInstitutionConversation("incubator", "interested", false), false);
+  assert.equal(canInitiateInstitutionConversation("incubator", "interested", true), true);
 });
 
 test("affected server routes use centralized profile resolution", () => {

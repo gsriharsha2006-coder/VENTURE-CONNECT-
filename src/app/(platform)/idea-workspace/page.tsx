@@ -1,80 +1,56 @@
 "use client";
 
-import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import {
-  Archive,
-  Copy,
-  Download,
-  FileText,
-  FolderOpen,
-  ImagePlus,
-  LayoutTemplate,
-  Save,
-  Search,
-  ShieldCheck,
-  Sparkles,
-  Tag,
-  Trash2,
-  UploadCloud
-} from "lucide-react";
+import { Archive, Download, FileChartColumn, FileText, LayoutTemplate, RotateCcw, Save, Search } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { StatusMessage } from "@/components/ui/FeedbackState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { useDemoPlan } from "@/hooks/useDemoPlan";
 import {
   archiveIdeaWorkspace,
   createIdeaWorkspace,
-  deleteIdeaWorkspace,
   getIdeaWorkspaces,
+  restoreIdeaWorkspace,
   updateIdeaWorkspace
 } from "@/lib/data/ideaWorkspaces";
 import { ideaWorkspaces as seedWorkspaces } from "@/lib/data";
-import { getBadgesForWorkspace } from "@/lib/data/validations";
 import { isDemoDataEnabled } from "@/lib/demo-data";
 import { isSupabaseConfigured } from "@/lib/supabase/isConfigured";
-import { PLAN_LIMITS } from "@/lib/subscription/plans";
-import { completionPercent, getTemplateDef, WORKSPACE_TEMPLATES } from "@/lib/templates";
+import { completionPercent, emptySectionsForTemplate, getTemplateDef } from "@/lib/templates";
 import { exportWorkspaceDocx, exportWorkspaceMarkdown, exportWorkspacePdf } from "@/lib/workspace-export";
-import type { IdeaStatus, IdeaWorkspaceItem, StartupStage, WorkspaceTemplate } from "@/lib/types";
+import type { IdeaStatus, IdeaWorkspaceItem, StartupStage } from "@/lib/types";
 
-const STORAGE_KEY = "venture-connect-idea-workspace";
+const STORAGE_KEY = "venture-connect-pilot-startup-workspaces";
 const statuses: IdeaStatus[] = ["Draft", "In Progress", "Complete"];
 const stages: StartupStage[] = ["Idea", "Prototype", "MVP", "Revenue", "Seed"];
 
-const versionDateFormatter = new Intl.DateTimeFormat("en-IN", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "Asia/Kolkata"
-});
-
-function createBlankWorkspace(template: WorkspaceTemplate = "startup"): IdeaWorkspaceItem {
-  const def = getTemplateDef(template);
-  const sections = Object.fromEntries(def.sections.map((s) => [s.key, ""]));
+function createBlankWorkspace(): IdeaWorkspaceItem {
+  const def = getTemplateDef("startup");
+  const sections = emptySectionsForTemplate("startup");
+  const now = new Date().toISOString();
   return {
     id: `ws-${Date.now()}`,
-    name: "Untitled workspace",
-    template,
+    name: "Untitled startup idea",
+    template: "startup",
     status: "Draft",
     stage: "Idea",
     visibility: "application_only",
     tags: [],
     category: def.label,
-    updatedAt: "Autosaved now",
+    updatedAt: now,
     sections,
     uploads: [],
-    versionHistory: [{ id: `v-${Date.now()}`, versionNumber: 1, sections: { ...sections }, createdAt: new Date().toISOString() }],
+    versionHistory: [{ id: `v-${Date.now()}`, versionNumber: 1, sections: { ...sections }, createdAt: now }],
     archived: false,
     summary: def.description,
     markdown: "",
-    uniqueness: 62,
-    demand: 65,
-    scalability: 68,
+    uniqueness: 0,
+    demand: 0,
+    scalability: 0,
     competition: "Medium",
     versions: 1
   };
@@ -83,651 +59,222 @@ function createBlankWorkspace(template: WorkspaceTemplate = "startup"): IdeaWork
 export default function IdeaWorkspacePage() {
   const router = useRouter();
   const demoEnabled = isDemoDataEnabled();
-  const [workspaces, setWorkspaces] = useState<IdeaWorkspaceItem[]>(demoEnabled ? seedWorkspaces : []);
-  const [selectedId, setSelectedId] = useState(demoEnabled ? seedWorkspaces[0]?.id ?? "" : "");
-  const [activeSection, setActiveSection] = useState<string>("");
-  const [autosave, setAutosave] = useState("Autosave ready.");
+  const [workspaces, setWorkspaces] = useState<IdeaWorkspaceItem[]>(demoEnabled ? seedWorkspaces.map((item) => ({ ...item, template: "startup" })) : []);
+  const [selectedId, setSelectedId] = useState("");
+  const [activeSection, setActiveSection] = useState("basic_information");
   const [searchQuery, setSearchQuery] = useState("");
-  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
-  const [plan, setPlan] = useDemoPlan();
-  const [persistenceError, setPersistenceError] = useState("");
+  const [saveStatus, setSaveStatus] = useState("All changes saved.");
+  const [error, setError] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const saveInFlight = useRef(false);
 
   useEffect(() => {
     let mounted = true;
-
-    async function loadWorkspaces() {
-      if (isSupabaseConfigured()) {
-        try {
-          const remote = await getIdeaWorkspaces();
+    async function load() {
+      try {
+        if (isSupabaseConfigured()) {
+          const rows = await getIdeaWorkspaces();
+          if (!mounted) return;
+          setWorkspaces(rows);
+          setSelectedId(rows.find((item) => !item.archived)?.id ?? "");
+          return;
+        }
+        if (!demoEnabled) {
+          setError("Account data is unavailable because backend services are not configured.");
+          return;
+        }
+        const stored = window.localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const rows = JSON.parse(stored) as IdeaWorkspaceItem[];
           if (mounted) {
-            setWorkspaces(remote);
-            setSelectedId(remote[0]?.id ?? "");
-            setPersistenceError("");
-          }
-        } catch (error) {
-          if (mounted) {
-            setWorkspaces([]);
-            setSelectedId("");
-            setPersistenceError(error instanceof Error ? error.message : "Unable to load Idea Workspace documents from Supabase.");
+            setWorkspaces(rows);
+            setSelectedId(rows.find((item) => !item.archived)?.id ?? "");
           }
         }
-        return;
-      }
-
-      if (!demoEnabled) {
-        setPersistenceError("Account data is unavailable because backend services are not configured.");
-        return;
-      }
-
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored) as IdeaWorkspaceItem[];
-          if (mounted && parsed.length) {
-            setWorkspaces(parsed);
-            setSelectedId(parsed[0].id);
-          }
-        } catch {
-          /* use seed */
-        }
+      } catch (reason) {
+        if (mounted) setError(reason instanceof Error ? reason.message : "Idea Workspace documents could not be loaded.");
       }
     }
-
-    void loadWorkspaces();
-    return () => {
-      mounted = false;
-    };
+    void load();
+    return () => { mounted = false; };
   }, [demoEnabled]);
 
   useEffect(() => {
     if (isSupabaseConfigured() || !demoEnabled) return;
     const timer = window.setTimeout(() => {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(workspaces));
-      setAutosave(`Autosaved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+      setSaveStatus(`Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
     }, 600);
     return () => window.clearTimeout(timer);
   }, [demoEnabled, workspaces]);
 
-  const selected = useMemo(
-    () => workspaces.find((w) => w.id === selectedId) ?? workspaces[0],
-    [workspaces, selectedId]
-  );
-
-  const templateDef = useMemo(() => getTemplateDef(selected?.template ?? "startup"), [selected?.template]);
-
   useEffect(() => {
-    if (selected && !activeSection) {
-      setActiveSection(templateDef.sections[0]?.key ?? "");
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!saveInFlight.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+
+  const selected = useMemo(() => workspaces.find((item) => item.id === selectedId), [selectedId, workspaces]);
+  const template = getTemplateDef("startup");
+  const active = useMemo(() => workspaces.filter((item) => !item.archived && item.name.toLowerCase().includes(searchQuery.toLowerCase())), [searchQuery, workspaces]);
+  const archived = useMemo(() => workspaces.filter((item) => item.archived), [workspaces]);
+  const completion = selected ? completionPercent(selected.sections, "startup") : 0;
+  const sectionMeta = template.sections.find((section) => section.key === activeSection);
+
+  const persist = useCallback(async (workspace: IdeaWorkspaceItem) => {
+    if (!isSupabaseConfigured() || workspace.id.startsWith("ws-")) return;
+    saveInFlight.current = true;
+    setSaveStatus("Saving changes...");
+    try {
+      await updateIdeaWorkspace(workspace);
+      setSaveStatus(`Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+      setError("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "This startup document could not be saved.");
+      setSaveStatus("Changes need attention.");
+    } finally {
+      saveInFlight.current = false;
     }
-  }, [selected, templateDef, activeSection]);
+  }, []);
 
-  const filtered = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    return workspaces.filter(
-      (w) =>
-        !w.archived &&
-        (w.name.toLowerCase().includes(q) ||
-          w.tags.some((t) => t.toLowerCase().includes(q)) ||
-          w.category.toLowerCase().includes(q))
-    );
-  }, [workspaces, searchQuery]);
-
-  const completion = selected ? completionPercent(selected.sections, selected.template) : 0;
-  const validationBadges = selected ? getBadgesForWorkspace(selected.id) : [];
-
-  const updateSelected = useCallback(
-    (patch: Partial<IdeaWorkspaceItem>) => {
-      if (!selected) return;
-      const nextWorkspace = { ...selected, ...patch, updatedAt: "Just now", markdown: patch.markdown ?? selected.markdown };
-      setWorkspaces((current) =>
-        current.map((w) =>
-          w.id === selected.id
-            ? nextWorkspace
-            : w
-        )
-      );
-      if (isSupabaseConfigured() && !selected.id.startsWith("workspace-") && !selected.id.startsWith("ws-")) {
-        void updateIdeaWorkspace(nextWorkspace)
-          .then(() => setPersistenceError(""))
-          .catch((error) => setPersistenceError(error instanceof Error ? error.message : "Unable to save this document to Supabase."));
-      }
-    },
-    [selected]
-  );
-
-  function updateSection(key: string, value: string) {
+  const updateSelected = useCallback((patch: Partial<IdeaWorkspaceItem>) => {
     if (!selected) return;
-    const sections = { ...selected.sections, [key]: value };
-    updateSelected({ sections });
+    const next = { ...selected, ...patch, updatedAt: new Date().toISOString(), template: "startup" as const };
+    setWorkspaces((current) => current.map((item) => item.id === selected.id ? next : item));
+    void persist(next);
+  }, [persist, selected]);
+
+  async function createStartupIdea() {
+    if (!isSupabaseConfigured() && !demoEnabled) return;
+    const draft = createBlankWorkspace();
+    setWorkspaces((current) => [draft, ...current]);
+    setSelectedId(draft.id);
+    setActiveSection("basic_information");
+    if (!isSupabaseConfigured()) return;
+    try {
+      const saved = await createIdeaWorkspace(draft);
+      setWorkspaces((current) => current.map((item) => item.id === draft.id ? saved : item));
+      setSelectedId(saved.id);
+      setSaveStatus("Startup idea created and saved.");
+    } catch (reason) {
+      setWorkspaces((current) => current.filter((item) => item.id !== draft.id));
+      setSelectedId("");
+      setError(reason instanceof Error ? reason.message : "The startup idea could not be created.");
+    }
+  }
+
+  async function archiveSelected() {
+    if (!selected) return;
+    try {
+      await archiveIdeaWorkspace(selected.id);
+      setWorkspaces((current) => current.map((item) => item.id === selected.id ? { ...item, archived: true } : item));
+      setSelectedId(workspaces.find((item) => item.id !== selected.id && !item.archived)?.id ?? "");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The startup idea could not be archived.");
+    }
+  }
+
+  async function restoreArchived(id: string) {
+    try {
+      await restoreIdeaWorkspace(id);
+      setWorkspaces((current) => current.map((item) => item.id === id ? { ...item, archived: false } : item));
+      setSelectedId(id);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The startup idea could not be restored.");
+    }
   }
 
   function saveVersion() {
     if (!selected) return;
-    const nextVersion = selected.versions + 1;
-    const version = {
-      id: `v-${Date.now()}`,
-      versionNumber: nextVersion,
-      sections: { ...selected.sections },
-      createdAt: new Date().toISOString(),
-      summary: `Version ${nextVersion} snapshot`
-    };
-    updateSelected({
-      versions: nextVersion,
-      versionHistory: [...selected.versionHistory, version]
-    });
+    const number = selected.versions + 1;
+    updateSelected({ versions: number, versionHistory: [...selected.versionHistory, { id: `v-${Date.now()}`, versionNumber: number, sections: { ...selected.sections }, createdAt: new Date().toISOString() }] });
   }
 
-  function duplicateWorkspace() {
+  function changeStatus(status: IdeaStatus) {
     if (!selected) return;
-    const copy = {
-      ...selected,
-      id: `ws-${Date.now()}`,
-      name: `${selected.name} (copy)`,
-      status: "Draft" as IdeaStatus,
-      versionHistory: selected.versionHistory.map((v) => ({ ...v, id: `v-${Date.now()}-${v.versionNumber}` }))
-    };
-    setWorkspaces((w) => [copy, ...w]);
-    setSelectedId(copy.id);
-    if (isSupabaseConfigured()) {
-      void createIdeaWorkspace(copy).then((saved) => {
-        setWorkspaces((current) => current.map((item) => item.id === copy.id ? saved : item));
-        setSelectedId(saved.id);
-        setPersistenceError("");
-      }).catch((error) => {
-        setWorkspaces((current) => current.filter((item) => item.id !== copy.id));
-        setSelectedId(selected.id);
-        setPersistenceError(error instanceof Error ? error.message : "Unable to duplicate this document in Supabase.");
-      });
-    }
-  }
-
-  async function archiveWorkspace() {
-    if (!selected) return;
-    if (isSupabaseConfigured()) {
-      try {
-        await archiveIdeaWorkspace(selected.id);
-        setPersistenceError("");
-      } catch (error) {
-        setPersistenceError(error instanceof Error ? error.message : "Unable to archive this document in Supabase.");
-        return;
-      }
-    }
-    setWorkspaces((current) => current.map((workspace) => workspace.id === selected.id ? { ...workspace, archived: true } : workspace));
-    const remaining = workspaces.filter((w) => w.id !== selected.id && !w.archived);
-    setSelectedId(remaining[0]?.id ?? "");
-  }
-
-  async function deleteWorkspace() {
-    if (!selected) return;
-    if (isSupabaseConfigured()) {
-      try {
-        await deleteIdeaWorkspace(selected.id);
-        setPersistenceError("");
-      } catch (error) {
-        setPersistenceError(error instanceof Error ? error.message : "Unable to delete this document from Supabase.");
-        return;
-      }
-    }
-    const next = workspaces.filter((w) => w.id !== selected.id);
-    if (isSupabaseConfigured()) {
-      setWorkspaces(next);
-      setSelectedId(next[0]?.id ?? "");
+    if (status === "Complete" && completion < 100) {
+      setError("Complete every required Startup Template section before marking this idea Complete.");
       return;
     }
-    const fallback = createBlankWorkspace();
-    setWorkspaces(next.length ? next : [fallback]);
-    setSelectedId(next[0]?.id ?? fallback.id);
-  }
-
-  function createFromTemplate(template: WorkspaceTemplate) {
-    if (!isSupabaseConfigured() && !demoEnabled) {
-      setPersistenceError("Workspace creation is unavailable because account services are not configured.");
-      return;
-    }
-    const limits = PLAN_LIMITS[plan];
-    if (!limits.allTemplates && template !== "startup") {
-      setAutosave(`${getTemplateDef(template).label} requires Student Pro or Founder Pro.`);
-      setShowTemplatePicker(false);
-      return;
-    }
-    if (limits.workspacesLimit !== "unlimited" && workspaces.filter((item) => !item.archived).length >= limits.workspacesLimit) {
-      setAutosave(`${plan} allows ${limits.workspacesLimit} Idea Workspace. Upgrade to create another document.`);
-      setShowTemplatePicker(false);
-      return;
-    }
-    const ws = createBlankWorkspace(template);
-    setWorkspaces((w) => [ws, ...w]);
-    setSelectedId(ws.id);
-    setShowTemplatePicker(false);
-    setActiveSection(getTemplateDef(template).sections[0].key);
-    if (isSupabaseConfigured()) {
-      void createIdeaWorkspace(ws).then((saved) => {
-        setWorkspaces((current) => current.map((item) => (item.id === ws.id ? saved : item)));
-        setSelectedId(saved.id);
-        setPersistenceError("");
-      }).catch((error) => {
-        setWorkspaces((current) => current.filter((item) => item.id !== ws.id));
-        setSelectedId("");
-        setPersistenceError(error instanceof Error ? error.message : "Unable to create this document in Supabase.");
-      });
-    }
-  }
-
-  function handleUpload(e: ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files?.length || !selected) return;
-    const names = Array.from(files).map((f) => f.name);
-    updateSelected({ uploads: [...selected.uploads, ...names] });
-  }
-
-  function openVcReport() {
-    window.localStorage.setItem("venture-connect-active-workspace", JSON.stringify(selected));
-    router.push("/dashboard/vc-readiness");
-  }
-
-  function requestHumanValidation() {
-    if (!selected) return;
-    window.localStorage.setItem("venture-connect-active-workspace", JSON.stringify(selected));
-    router.push("/dashboard/validation-hub");
-  }
-
-  function changeStatus(nextStatus: IdeaStatus) {
-    if (!selected) return;
-    if (nextStatus === "Complete" && completion < 100) {
-      const missing = templateDef.sections
-        .filter((section) => section.required !== false && !selected.sections[section.key]?.trim())
-        .map((section) => section.label)
-        .join(", ");
-      setAutosave(`Cannot mark Complete. Missing: ${missing}.`);
-      return;
-    }
-    updateSelected({ status: nextStatus });
+    updateSelected({ status });
   }
 
   if (!selected) {
     return (
-      <div className="space-y-4">
-        {persistenceError ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800">{persistenceError}</div>
-        ) : null}
+      <div className="space-y-5">
+        <PageHeader eyebrow="Idea Workspace" title="Create your Startup Idea" description="Use one structured Startup Template for incubation applications and readiness review." />
+        {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
         <Card className="p-8 text-center">
-          <Badge>Idea Workspace</Badge>
-          <h1 className="mt-4 text-2xl font-semibold">No Idea Workspace documents yet</h1>
-          <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
-            Create your first startup document. It will be saved only to your authenticated account; no local placeholder document is created.
-          </p>
-          <Button className="mt-5" onClick={() => createFromTemplate("startup")} disabled={!isSupabaseConfigured() && !demoEnabled}>
-            <LayoutTemplate size={16} />
-            Create first workspace
-          </Button>
+          <LayoutTemplate className="mx-auto text-primary" size={28} />
+          <h1 className="mt-4 text-2xl font-semibold">No active startup idea</h1>
+          <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-600">Create a private startup document or restore an archived one.</p>
+          <Button className="mt-5" onClick={() => void createStartupIdea()} disabled={!isSupabaseConfigured() && !demoEnabled}>Create Startup Idea</Button>
         </Card>
+        {archived.length ? <Card><CardHeader eyebrow="Archive" title="Archived startup ideas" /><div className="space-y-2">{archived.map((item) => <div key={item.id} className="flex items-center justify-between rounded-lg border border-slate-200 p-3"><span className="text-sm font-semibold">{item.name}</span><Button size="sm" variant="secondary" onClick={() => void restoreArchived(item.id)}><RotateCcw size={14} />Restore</Button></div>)}</div></Card> : null}
       </div>
     );
   }
-
-  const sectionMeta = templateDef.sections.find((s) => s.key === activeSection);
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Idea Workspace"
-        title="Prepare structured startup documents."
-        description="Build application-ready startup documents or use the optional Hackathon Project workspace to prepare a solution, demo, and pitch."
-        actions={
-          <>
-          {demoEnabled ? <label className="flex h-10 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3">
-            <span className="text-sm font-medium text-blue-700">Demo plan</span>
-            <select
-              aria-label="Demo subscription plan"
-              value={plan}
-              onChange={(event) => setPlan(event.target.value as "Free" | "Student Pro" | "Founder Pro")}
-              className="bg-transparent text-sm font-semibold text-slate-900 outline-none"
-            >
-              <option>Free</option>
-              <option>Student Pro</option>
-              <option>Founder Pro</option>
-            </select>
-          </label> : null}
-          <Button onClick={() => setShowTemplatePicker(true)}>
-            <LayoutTemplate size={16} />
-            New workspace
-          </Button>
-          <Button variant="secondary" onClick={openVcReport}>
-            <Sparkles size={16} />
-            VC readiness
-          </Button>
-          </>
-        }
+        title="Open Startup Workspace"
+        description="Document your startup honestly, save drafts automatically, and prepare one consistent source for incubation applications."
+        actions={<><Button onClick={() => void createStartupIdea()}><LayoutTemplate size={16} />Create Startup Idea</Button><Button variant="secondary" onClick={() => router.push("/dashboard/vc-readiness")}><FileChartColumn size={16} />VC Readiness Report</Button></>}
       />
-
-      {persistenceError ? (
-        <StatusMessage tone="error">{persistenceError}</StatusMessage>
-      ) : null}
+      {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
 
       <div className="grid min-w-0 gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
         <Card className="min-w-0 p-4 xl:sticky xl:top-24 xl:self-start">
-          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+          <label className="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3">
             <Search size={16} className="text-slate-400" />
-            <input
-              aria-label="Search Idea Workspace documents"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search workspaces..."
-              className="w-full bg-transparent text-sm outline-none"
-            />
+            <input aria-label="Search startup ideas" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search startup ideas" className="w-full bg-transparent text-sm outline-none" />
+          </label>
+          <div className="mt-4 space-y-2">
+            {active.map((item) => <button key={item.id} type="button" onClick={() => { setSelectedId(item.id); setActiveSection("basic_information"); }} className={`w-full rounded-lg border p-3 text-left ${item.id === selected.id ? "border-primary bg-blue-50" : "border-slate-200 hover:bg-slate-50"}`}><p className="text-sm font-semibold">{item.name}</p><p className="mt-1 text-xs text-slate-500">Startup Template / {item.status}</p></button>)}
           </div>
-          <div className="mt-4 space-y-2 scrollbar-thin max-h-[420px] overflow-y-auto">
-            {filtered.map((w) => (
-              <button
-                key={w.id}
-                type="button"
-                onClick={() => {
-                  setSelectedId(w.id);
-                  setActiveSection(getTemplateDef(w.template).sections[0].key);
-                }}
-                className={`w-full rounded-lg border px-3 py-2.5 text-left transition ${
-                  w.id === selectedId
-                    ? "border-primary bg-blue-50 shadow-panel"
-                    : "border-slate-200 hover:bg-slate-50"
-                }`}
-              >
-                <p className="text-sm font-semibold text-slate-900">{w.name}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {getTemplateDef(w.template).label} / {w.status}
-                </p>
-              </button>
-            ))}
-          </div>
+          {archived.length ? <div className="mt-5 border-t border-slate-200 pt-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Archived</p>{archived.map((item) => <button key={item.id} type="button" onClick={() => void restoreArchived(item.id)} className="mt-2 flex w-full items-center justify-between rounded-lg border border-slate-200 p-2 text-left text-sm"><span className="truncate">{item.name}</span><RotateCcw size={14} /></button>)}</div> : null}
         </Card>
 
         <div className="min-w-0 space-y-4">
-          <Card className="p-4">
-            <div className="space-y-4">
-              <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Document title</span>
-                <input
-                  value={selected.name}
-                  onChange={(e) => updateSelected({ name: e.target.value })}
-                  className="mt-1 w-full bg-transparent text-2xl font-semibold outline-none"
-                />
-              </label>
-              <div className="flex flex-wrap items-end gap-3">
-                <div>
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Template type</p>
-                  <div className="flex h-10 items-center">
-                    <Badge>{getTemplateDef(selected.template).label}</Badge>
-                  </div>
-                </div>
-                <label>
-                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Status</span>
-                  <select value={selected.status} onChange={(e) => changeStatus(e.target.value as IdeaStatus)} className="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </label>
-                <label>
-                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Stage</span>
-                  <select value={selected.stage} onChange={(e) => updateSelected({ stage: e.target.value as StartupStage })} className="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    {stages.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </label>
-                <label>
-                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Visibility</span>
-                  <select value={selected.visibility} onChange={(e) => updateSelected({ visibility: e.target.value as "private" | "application_only" })} className="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <option value="private">Private</option>
-                    <option value="application_only">Application only</option>
-                  </select>
-                </label>
-              </div>
+          <Card>
+            <label className="block"><span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Document title</span><input value={selected.name} onChange={(event) => updateSelected({ name: event.target.value })} className="mt-1 w-full bg-transparent text-2xl font-semibold outline-none" /></label>
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <div><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Template</p><Badge>Startup Template</Badge></div>
+              <label><span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Status</span><select value={selected.status} onChange={(event) => changeStatus(event.target.value as IdeaStatus)} className="h-10 rounded-lg border border-slate-200 px-3 text-sm">{statuses.map((status) => <option key={status}>{status}</option>)}</select></label>
+              <label><span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Stage</span><select value={selected.stage} onChange={(event) => updateSelected({ stage: event.target.value as StartupStage })} className="h-10 rounded-lg border border-slate-200 px-3 text-sm">{stages.map((stage) => <option key={stage}>{stage}</option>)}</select></label>
             </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                ["Completion", completion],
-                ["Uniqueness", selected.uniqueness],
-                ["Demand", selected.demand],
-                ["Scalability", selected.scalability]
-              ].map(([label, value]) => (
-                <div key={label as string}>
-                  <p className="mb-1 text-xs font-semibold text-slate-500">{label as string}</p>
-                  <ProgressBar value={value as number} />
-                </div>
-              ))}
-            </div>
-            <p className="mt-3 text-xs text-slate-500">{autosave}</p>
-            {selected.template === "hackathon" ? (
-              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm leading-6 text-blue-900">
-                Registration is completed on the organiser&apos;s website. Use this optional Hackathon Project workspace to plan your solution and prepare your demo and pitch. Workspace completion never blocks official registration.
-              </div>
-            ) : null}
-            {completion < 100 && selected.template !== "hackathon" ? (
-              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                Complete your Idea Workspace document before applying to internal investor, incubator, accelerator, or partnered challenge posts.
-              </div>
-            ) : selected.template !== "hackathon" ? (
-              <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                This document is complete and eligible for structured opportunity applications.
-              </div>
-            ) : null}
-            <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-2 font-semibold">
-                  <ShieldCheck size={16} />
-                  {validationBadges.length ? "Human-reviewed document version available" : "Request expert review when your document is ready"}
-                </span>
-                <Button size="sm" variant="secondary" onClick={requestHumanValidation}>
-                  Request Human Validation
-                </Button>
-              </div>
-              {validationBadges.length ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {validationBadges.map((badge) => <Badge key={badge.id} tone="green">{badge.name}</Badge>)}
-                </div>
-              ) : null}
-            </div>
+            <div className="mt-5"><div className="mb-2 flex justify-between text-sm font-semibold"><span>Completion</span><span>{completion}%</span></div><ProgressBar value={completion} /></div>
+            <p role="status" className="mt-3 text-xs text-slate-500">{saveStatus}</p>
+            {completion < 100 ? <StatusMessage className="mt-4">Complete your Idea Workspace document before applying to an incubation program.</StatusMessage> : <StatusMessage tone="success" className="mt-4">This Startup Template is complete and ready for incubation applications.</StatusMessage>}
           </Card>
 
-          <div className="grid min-w-0 gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-            <Card className="min-w-0 overflow-hidden p-3 xl:sticky xl:top-24 xl:self-start">
-              <p className="px-2 text-sm font-medium text-slate-500">Sections</p>
-              <nav aria-label="Document sections" className="scrollbar-none mt-2 flex gap-2 overflow-x-auto pb-1 xl:block xl:space-y-1 xl:overflow-visible xl:pb-0">
-                {templateDef.sections.map((s) => {
-                  const filled = (selected.sections[s.key]?.trim().length ?? 0) > 20;
-                  return (
-                    <button
-                      key={s.key}
-                      type="button"
-                      onClick={() => setActiveSection(s.key)}
-                      className={`flex min-h-10 w-auto shrink-0 items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition xl:w-full ${
-                        activeSection === s.key
-                          ? "bg-primary text-white"
-                          : "text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      <span>{s.label}</span>
-                      {filled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
-                    </button>
-                  );
-                })}
+          <div className="grid min-w-0 gap-4 xl:grid-cols-[230px_minmax(0,1fr)]">
+            <Card className="min-w-0 p-3 xl:sticky xl:top-24 xl:self-start">
+              <p className="px-2 text-sm font-semibold text-slate-500">Sections</p>
+              <nav aria-label="Startup Template sections" className="scrollbar-none mt-2 flex gap-2 overflow-x-auto pb-1 xl:block xl:space-y-1 xl:overflow-visible">
+                {template.sections.map((section) => <button key={section.key} type="button" onClick={() => setActiveSection(section.key)} className={`min-h-10 shrink-0 rounded-lg px-3 py-2 text-left text-sm xl:w-full ${activeSection === section.key ? "bg-primary text-white" : "text-slate-600 hover:bg-slate-100"}`}>{section.label}</button>)}
               </nav>
             </Card>
-
-            <Card className="min-w-0 p-4">
-              {sectionMeta ? (
-                <>
-                  <CardHeader
-                    eyebrow={templateDef.label}
-                    title={sectionMeta.label}
-                  />
-                  <p className="-mt-2 mb-4 text-xs leading-5 text-slate-500">Select a section to edit its content.</p>
-                  <textarea
-                    value={selected.sections[activeSection] ?? ""}
-                    onChange={(e) => updateSection(activeSection, e.target.value)}
-                    placeholder={sectionMeta.hint}
-                    rows={14}
-                    className="min-h-[360px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm leading-6 outline-none"
-                  />
-                  <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Markdown preview</p>
-                  <div className="prose prose-sm mt-2 max-w-none text-slate-700">
-                    <ReactMarkdown>{selected.sections[activeSection] ?? ""}</ReactMarkdown>
-                  </div>
-                  {selected.template === "startup" && activeSection === "one_minute_video_link" && selected.sections.one_minute_video_link ? (
-                    <a
-                      href={selected.sections.one_minute_video_link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-primary"
-                    >
-                      Open attached video link
-                    </a>
-                  ) : null}
-                </div>
-                </>
-              ) : (
-                <div className="flex min-h-72 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                  Select a section to edit its content.
-                </div>
-              )}
+            <Card className="min-w-0">
+              {sectionMeta ? <><CardHeader eyebrow="Startup Template" title={sectionMeta.label} /><p className="text-sm leading-6 text-slate-600">{sectionMeta.hint}</p><ul className="mt-3 grid gap-1 text-xs text-slate-500 sm:grid-cols-2">{sectionMeta.prompts.map((prompt) => <li key={prompt}>• {prompt}</li>)}</ul><textarea value={selected.sections[activeSection] ?? ""} onChange={(event) => updateSelected({ sections: { ...selected.sections, [activeSection]: event.target.value } })} placeholder="Write a clear, factual response. Honest zero or not-yet-validated answers are acceptable." rows={14} className="mt-4 min-h-[340px] w-full resize-y rounded-xl border border-slate-300 bg-slate-50/50 px-4 py-3 text-sm leading-6 outline-none focus:border-primary focus:ring-4 focus:ring-blue-100" /></> : <p className="p-8 text-center text-sm text-slate-500">Select a section to edit its content.</p>}
             </Card>
           </div>
 
-          <Card className="p-4">
-            <CardHeader title="Files, versions & exports" eyebrow="Workspace tools" />
-            <div className="mt-4 flex flex-wrap gap-2">
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold hover:bg-slate-50">
-                <UploadCloud size={16} />
-                Upload
-                <input type="file" multiple className="hidden" onChange={handleUpload} />
-              </label>
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold hover:bg-slate-50">
-                <ImagePlus size={16} />
-                Image
-                <input type="file" accept="image/*" className="hidden" onChange={handleUpload} />
-              </label>
-              <Button variant="secondary" size="sm" onClick={saveVersion}>
-                <Save size={14} />
-                Save version
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => exportWorkspacePdf(selected)}>
-                <Download size={14} />
-                PDF
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={plan === "Free"}
-                title={plan === "Free" ? "DOCX export requires Student Pro or Founder Pro" : undefined}
-                onClick={() => exportWorkspaceDocx(selected)}
-              >
-                <FileText size={14} />
-                DOCX
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => exportWorkspaceMarkdown(selected)}>
-                <Download size={14} />
-                Markdown
-              </Button>
-              <Button variant="secondary" size="sm" onClick={duplicateWorkspace}>
-                <Copy size={14} />
-                Duplicate
-              </Button>
-              <Button variant="secondary" size="sm" onClick={archiveWorkspace}>
-                <Archive size={14} />
-                Archive
-              </Button>
-              <Button variant="secondary" size="sm" onClick={deleteWorkspace}>
-                <Trash2 size={14} />
-                Delete
-              </Button>
-            </div>
-            {selected.uploads.length > 0 && (
-              <ul className="mt-4 space-y-2">
-                {selected.uploads.map((file) => (
-                  <li key={file} className="flex items-center gap-2 text-sm text-slate-600">
-                    <FolderOpen size={14} />
-                    {file}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {selected.versionHistory.length > 0 && (
-              <div className="mt-4">
-                <p className="text-xs font-semibold uppercase text-slate-500">Version history</p>
-                <ul className="mt-2 space-y-1 text-sm text-slate-600">
-                  {selected.versionHistory.slice(-5).reverse().map((v) => (
-                    <li key={v.id}>
-                      v{v.versionNumber} / {versionDateFormatter.format(new Date(v.createdAt))}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <div className="mt-4 flex flex-wrap gap-2">
-              <input
-                placeholder="Add tag..."
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                    updateSelected({ tags: [...selected.tags, e.currentTarget.value.trim()] });
-                    e.currentTarget.value = "";
-                  }
-                }}
-              />
-              {selected.tags.map((tag) => (
-                <Badge key={tag} tone="slate">
-                  <Tag size={12} className="mr-1" />
-                  {tag}
-                </Badge>
-              ))}
-            </div>
+          {previewOpen ? <Card><CardHeader eyebrow="Preview" title={selected.name} /><div className="space-y-6">{template.sections.map((section) => <section key={section.key}><h2 className="text-base font-semibold">{section.label}</h2><div className="prose prose-sm mt-2 max-w-none text-slate-700"><ReactMarkdown>{selected.sections[section.key] || "Not completed."}</ReactMarkdown></div></section>)}</div></Card> : null}
+
+          <Card>
+            <CardHeader eyebrow="Workspace tools" title="Save, preview and export" />
+            <div className="flex flex-wrap gap-2"><Button variant="secondary" size="sm" onClick={saveVersion}><Save size={14} />Save version</Button><Button variant="secondary" size="sm" onClick={() => setPreviewOpen((value) => !value)}><FileText size={14} />{previewOpen ? "Close preview" : "Preview startup document"}</Button><Button variant="secondary" size="sm" onClick={() => exportWorkspacePdf(selected)}><Download size={14} />PDF</Button><Button variant="secondary" size="sm" onClick={() => exportWorkspaceDocx(selected)}><FileText size={14} />DOCX</Button><Button variant="secondary" size="sm" onClick={() => exportWorkspaceMarkdown(selected)}><Download size={14} />Markdown</Button><Button variant="secondary" size="sm" onClick={() => void archiveSelected()}><Archive size={14} />Archive idea</Button></div>
+            {selected.versionHistory.length ? <p className="mt-4 text-xs text-slate-500">{selected.versionHistory.length} saved version{selected.versionHistory.length === 1 ? "" : "s"}. Latest changes are also autosaved.</p> : null}
           </Card>
         </div>
       </div>
-
-      <AnimatePresence>
-        {showTemplatePicker && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
-            onClick={() => setShowTemplatePicker(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              className="w-full max-w-3xl rounded-xl border border-slate-200 bg-white p-6 shadow-premium"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-xl font-semibold">Choose a workspace template</h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Each template changes the document structure. Hackathon Project is for optional preparation and does not replace official organiser registration.
-              </p>
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                {WORKSPACE_TEMPLATES.map((t) => {
-                  const locked = plan === "Free" && t.id !== "startup";
-                  return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => createFromTemplate(t.id)}
-                    className={`rounded-lg border p-4 text-left transition hover:shadow-panel ${locked ? "border-slate-200 bg-slate-50 opacity-70" : "border-slate-200 hover:border-primary"}`}
-                  >
-                    <span className="text-2xl">{t.icon}</span>
-                    <div className="mt-3 flex items-center justify-between gap-2">
-                      <p className="font-semibold">{t.label}</p>
-                      {locked ? <Badge tone="amber">Upgrade</Badge> : null}
-                    </div>
-                    <p className="mt-1 text-sm text-slate-600">{t.description}</p>
-                    <p className="mt-2 text-xs text-slate-500">{t.sections.length} structured sections</p>
-                  </button>
-                  );
-                })}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

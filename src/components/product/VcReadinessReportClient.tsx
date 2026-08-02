@@ -1,455 +1,146 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Download, LockKeyhole, Sparkles, Wand2 } from "lucide-react";
+import { Download, FileChartColumn, LockKeyhole } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { EmptyState, StatusMessage } from "@/components/ui/FeedbackState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { useDemoPlan } from "@/hooks/useDemoPlan";
 import { isStoredVcReportContent } from "@/lib/ai/reportSchema";
-import { ideaWorkspaces as mockIdeaWorkspaces, reportSuite } from "@/lib/data";
+import { pilotDemoWorkspaces } from "@/lib/pilot/demo-data";
 import { isDemoDataEnabled } from "@/lib/demo-data";
 import { getIdeaWorkspaces } from "@/lib/data/ideaWorkspaces";
 import { getGeneratedReports, type ReportHistoryItem } from "@/lib/data/reports";
-import { getSubscriptionUsage } from "@/lib/data/subscriptions";
 import { downloadReportPdf } from "@/lib/pdf";
-import { computeEntitlements } from "@/lib/subscription/plans";
 import { isSupabaseConfigured } from "@/lib/supabase/isConfigured";
 import { completionPercent, getTemplateDef } from "@/lib/templates";
-import type { IdeaWorkspaceItem, Profile, ReportType, VcReportContent } from "@/lib/types";
+import type { IdeaWorkspaceItem, VcReportContent } from "@/lib/types";
 
-type Props = {
-  developmentMode: boolean;
-  openaiConfigured: boolean;
-};
+type Props = { developmentMode: boolean; openaiConfigured: boolean };
 
 export function VcReadinessReportClient({ developmentMode, openaiConfigured }: Props) {
   const supabaseConfigured = isSupabaseConfigured();
   const demoEnabled = isDemoDataEnabled();
-  const initialWorkspaces = demoEnabled ? mockIdeaWorkspaces : [];
-  const [workspaceOptions, setWorkspaceOptions] = useState<IdeaWorkspaceItem[]>(supabaseConfigured ? [] : initialWorkspaces);
-  const [workspace, setWorkspace] = useState<IdeaWorkspaceItem | null>(supabaseConfigured ? null : initialWorkspaces[0] ?? null);
-  const [reportType, setReportType] = useState<ReportType>("Basic SWOT Report");
-  const [report, setReport] = useState<VcReportContent | null>(null);
+  const [workspaces, setWorkspaces] = useState<IdeaWorkspaceItem[]>(demoEnabled ? pilotDemoWorkspaces : []);
+  const [workspaceId, setWorkspaceId] = useState("");
   const [history, setHistory] = useState<ReportHistoryItem[]>([]);
-  const [status, setStatus] = useState("Select a completed Idea Workspace document and generate a VC Readiness Report.");
+  const [report, setReport] = useState<VcReportContent | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [reportSource, setReportSource] = useState<"openai" | "mock" | null>(null);
-  const freeUsedInSession = false;
-  const [liveUsage, setLiveUsage] = useState<Awaited<ReturnType<typeof getSubscriptionUsage>> | null>(null);
-  const [demoPlan, setDemoPlan] = useDemoPlan();
-  const generationInFlightRef = useRef(false);
+  const [status, setStatus] = useState("Select a completed Startup Template to begin.");
+  const inFlight = useRef(false);
 
   useEffect(() => {
-    let cancelled = false;
+    let active = true;
+    void Promise.all([getIdeaWorkspaces(), getGeneratedReports()])
+      .then(([workspaceRows, reportRows]) => {
+        if (!active) return;
+        const activeWorkspaces = workspaceRows.filter((item) => !item.archived);
+        const basicReports = reportRows.filter((item) => item.report.reportType === "Basic SWOT Report");
+        setWorkspaces(activeWorkspaces);
+        setWorkspaceId(activeWorkspaces[0]?.id ?? "");
+        setHistory(basicReports);
+        setReport(basicReports[0]?.report ?? null);
+        setStatus(basicReports.length ? "Your saved pilot report is available below." : "Select a completed Startup Template to begin.");
+      })
+      .catch(() => setStatus("Report data could not be loaded. Refresh and try again."));
+    return () => { active = false; };
+  }, []);
 
-    if (supabaseConfigured) {
-      Promise.all([getIdeaWorkspaces(), getGeneratedReports(), getSubscriptionUsage()])
-        .then(([workspaces, savedReports, usage]) => {
-          if (cancelled) return;
-          const active = workspaces.filter((item) => !item.archived);
-          setWorkspaceOptions(active);
-          setWorkspace(active[0] ?? null);
-          setHistory(savedReports);
-          setLiveUsage(usage);
-          setStatus(active.length
-            ? "Select a completed Idea Workspace document and generate a VC Readiness Report."
-            : "Create and complete an Idea Workspace document before generating a report.");
-        })
-        .catch(() => {
-          if (!cancelled) setStatus("We could not load your report data. Please refresh and try again.");
-        });
-      return () => {
-        cancelled = true;
-      };
-    }
+  const workspace = workspaces.find((item) => item.id === workspaceId) ?? workspaces[0];
+  const completion = workspace ? completionPercent(workspace.sections, "startup") : 0;
+  const documentReady = Boolean(workspace && completion === 100 && workspace.status === "Complete");
+  const reportAlreadyGenerated = history.length > 0;
+  const canGenerate = documentReady && confirmed && !reportAlreadyGenerated && !loading;
 
-    if (!demoEnabled) return;
-
-    const stored = window.localStorage.getItem("venture-connect-active-workspace");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as IdeaWorkspaceItem;
-        setWorkspace(parsed);
-      } catch {
-        // Keep the deterministic development workspace.
-      }
-    }
-    const storedHistory = window.localStorage.getItem("venture-connect-report-history");
-    if (storedHistory) {
-      try {
-        const parsed = JSON.parse(storedHistory) as ReportHistoryItem[];
-        setHistory(parsed.filter((item) => isStoredVcReportContent(item.report)));
-      } catch {
-        // Keep an empty development history.
-      }
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [demoEnabled, supabaseConfigured]);
-
-  const prototypeProfile = useMemo<Profile>(() => ({
-    id: "prototype-founder",
-    full_name: "Prototype Founder",
-    email: "prototype@venture-connect.local",
-    role: "Founder",
-    plan: demoPlan,
-    free_report_used: freeUsedInSession,
-    reports_used_this_month: 0
-  }), [demoPlan, freeUsedInSession]);
-  const entitlements = liveUsage?.entitlements ?? computeEntitlements(prototypeProfile);
-  const activePlan = liveUsage?.plan ?? demoPlan;
-  const suiteItem = reportSuite.find((item) => item.title === reportType) ?? reportSuite[0];
-  const template = workspace ? getTemplateDef(workspace.template) : null;
-  const completion = workspace ? completionPercent(workspace.sections, workspace.template) : 0;
-  const reportUnlocked = reportType === "Basic SWOT Report" || entitlements.reportTypes.includes(reportType);
-  const freeAvailable = entitlements.freeReportAvailable && (supabaseConfigured || !freeUsedInSession);
-  const documentReady = Boolean(workspace && completion === 100);
-  const allowanceReady = reportType === "Basic SWOT Report" ? freeAvailable : entitlements.reportsRemaining > 0;
-  const canGenerate = documentReady && reportUnlocked && allowanceReady;
-  const allowanceLabel = entitlements.reportsRemaining > 0
-    ? `${entitlements.reportsRemaining} premium report${entitlements.reportsRemaining === 1 ? "" : "s"} remaining`
-    : activePlan === "Free"
-      ? "Premium reports require an upgrade"
-      : "No premium reports remaining this month";
-
-  const reportOptions = useMemo(
-    () => reportSuite.map((item) => ({
-      ...item,
-      locked: item.title !== "Basic SWOT Report" && !entitlements.reportTypes.includes(item.title)
-    })),
-    [entitlements.reportTypes]
-  );
-
-  if (!supabaseConfigured && !demoEnabled) {
-    return (
-      <div className="min-w-0 space-y-5">
-        <PageHeader
-          eyebrow="VC Readiness Report"
-          title="Review a completed Idea Workspace document."
-          description="Structured readiness reports use authenticated workspace records and a configured AI provider."
-        />
-        <StatusMessage>
-          Account data is not available in this environment. Report generation has been disabled without substituting sample results.
-        </StatusMessage>
-        <EmptyState
-          icon={LockKeyhole}
-          title="Report workspace unavailable"
-          description="Connect the application backend and sign in to load an eligible Idea Workspace document."
-          action={<Link href="/idea-workspace"><Button variant="secondary">Return to Idea Workspace</Button></Link>}
-        />
-      </div>
-    );
+  async function refreshHistory() {
+    const reports = (await getGeneratedReports()).filter((item) => item.report.reportType === "Basic SWOT Report");
+    setHistory(reports);
+    setReport(reports[0]?.report ?? null);
   }
 
-  async function refreshSupabaseReportState() {
-    const [savedReports, usage] = await Promise.all([getGeneratedReports(), getSubscriptionUsage()]);
-    setHistory(savedReports);
-    setLiveUsage(usage);
-  }
-
-  async function handleGenerate() {
-    if (!workspace) {
-      setStatus("Select an Idea Workspace document first.");
-      return;
-    }
-    if (completion < 100) {
-      setStatus("Complete every required Idea Workspace section before generating a report.");
-      return;
-    }
-    if (reportType === "Basic SWOT Report" && !freeAvailable) {
-      setStatus("Free Basic SWOT Report is one-time only. Upgrade to Student Pro or Founder Pro for premium reports.");
-      return;
-    }
-    if (!reportUnlocked) {
-      setStatus(`${reportType} requires ${suiteItem.plan}.`);
-      return;
-    }
-    if (generationInFlightRef.current) return;
-
-    generationInFlightRef.current = true;
+  async function generate() {
+    if (!workspace || !canGenerate || inFlight.current) return;
+    inFlight.current = true;
     setLoading(true);
-    setStatus(`Generating ${reportType}...`);
+    setStatus("Generating and validating your report...");
     try {
-      const requestStorageKey = `venture-connect-report-request:${workspace.id}:${reportType}`;
-      const storedRequestId = window.sessionStorage.getItem(requestStorageKey);
-      const requestId = storedRequestId && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(storedRequestId)
-        ? storedRequestId
-        : window.crypto.randomUUID();
-      window.sessionStorage.setItem(requestStorageKey, requestId);
+      const requestId = window.crypto.randomUUID();
       const body = supabaseConfigured
-        ? { requestId, workspaceId: workspace.id, reportType }
-        : {
-            requestId,
-            workspaceId: workspace.id,
-            reportType,
-            prototypePlan: demoPlan,
-            prototypeWorkspace: {
-              name: workspace.name,
-              template: workspace.template,
-              sections: workspace.sections
-            }
-          };
-      const response = await fetch("/api/reports/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      const data = await response.json() as {
-        error?: string;
-        notice?: string;
-        provider?: string;
-        mode?: string;
-        persistence?: string;
-        report?: unknown;
-      };
-      if (!response.ok) {
-        setStatus("We could not generate the report. Please try again.");
-        return;
-      }
-      if (!isStoredVcReportContent(data.report)) {
-        setStatus("The server returned an invalid structured report. No report credit was consumed.");
-        return;
-      }
-
-      setReport(data.report);
-      setReportSource(data.provider === "openai" ? "openai" : data.provider === "mock" ? "mock" : null);
-      if (data.persistence === "permanent" && supabaseConfigured) {
-        await refreshSupabaseReportState();
-      } else {
-        const nextHistory = [
-          { id: `report-${Date.now()}`, workspaceName: workspace.name, report: data.report },
-          ...history
-        ];
-        setHistory(nextHistory);
-        if (!supabaseConfigured) {
-          window.localStorage.setItem("venture-connect-report-history", JSON.stringify(nextHistory));
-        }
-      }
-      window.sessionStorage.removeItem(requestStorageKey);
-      setStatus(data.provider === "mock" ? "Sample report generated for development review." : "Report generated and saved successfully.");
-    } catch {
-      setStatus("We could not generate the report. Please try again.");
+        ? { requestId, workspaceId: workspace.id, reportType: "Basic SWOT Report" }
+        : { requestId, workspaceId: workspace.id, reportType: "Basic SWOT Report", prototypeWorkspace: { name: workspace.name, template: "startup", sections: workspace.sections } };
+      const response = await fetch("/api/reports/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const payload = await response.json() as { report?: unknown; persistence?: string; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "The report could not be generated.");
+      if (!isStoredVcReportContent(payload.report)) throw new Error("The structured report was invalid and was not saved.");
+      setReport(payload.report);
+      if (payload.persistence === "permanent") await refreshHistory();
+      setStatus(payload.persistence === "permanent" ? "Report generated and saved. Reopening this page will not regenerate it." : "Development sample generated. It is temporary and does not use the pilot allowance.");
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : "The report could not be generated. No allowance was consumed.");
     } finally {
-      generationInFlightRef.current = false;
+      inFlight.current = false;
       setLoading(false);
     }
   }
 
-  function handleDownload() {
-    if (!report || !workspace || !template) return;
+  function download() {
+    if (!report || !workspace) return;
     downloadReportPdf({
-      filename: `${report.reportType.replace(/\s+/g, "-").toLowerCase()}-${workspace.name.replace(/\s+/g, "-").toLowerCase()}.pdf`,
-      title: report.reportType,
-      subtitle: `${workspace.name} / ${template.label}`,
-      scores: [{ label: "Report score", value: report.overallScore }],
-      sections: report.sections.map((item) => ({
-        title: item.title,
-        lines: [
-          item.body ?? "",
-          ...(item.items ?? []),
-          typeof item.score === "number" ? `Score: ${item.score}/100` : ""
-        ].filter(Boolean)
-      }))
+      filename: `vc-readiness-report-${workspace.name.replace(/\s+/g, "-").toLowerCase()}.pdf`,
+      title: "VC Readiness Report",
+      subtitle: `${workspace.name} / Startup Template`,
+      scores: [{ label: "Overall readiness", value: report.overallScore }],
+      sections: [{ title: "Readiness summary", lines: [report.summary ?? ""] }, ...report.sections.map((section) => ({ title: section.title, lines: [section.body ?? "", ...(section.items ?? []), typeof section.score === "number" ? `Score: ${section.score}/100` : ""].filter(Boolean) })), { title: "Five priority improvements", lines: report.improvementSuggestions.slice(0, 5) }]
     });
+  }
+
+  if (!supabaseConfigured && !demoEnabled) {
+    return <div className="space-y-5"><PageHeader eyebrow="VC Readiness Report" title="Account connection required" description="Sign in with the configured pilot backend to load your Startup Template." /><EmptyState icon={LockKeyhole} title="Report unavailable" description="No sample founder data is substituted in production mode." action={<Link href="/dashboard/idea-workspace"><Button variant="secondary">Return to Idea Workspace</Button></Link>} /></div>;
   }
 
   return (
     <div className="min-w-0 space-y-5">
-      {developmentMode && !openaiConfigured ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
-          Development mode: reports use temporary sample output until OpenAI is configured.
-        </div>
-      ) : null}
+      {developmentMode && !openaiConfigured ? <StatusMessage>Development mode: reports use temporary sample output until the configured model endpoint is available.</StatusMessage> : null}
+      <PageHeader eyebrow="VC Readiness Report" title="One basic readiness report for the pilot" description="Generate an educational readiness review from one completed Startup Template. The saved result reopens without another model call." />
 
-      <PageHeader
-        eyebrow="VC Readiness Report"
-        title="Turn a completed workspace into an investor-readiness review."
-        description="Generate structured reports from your selected Idea Workspace document and keep prior results available for comparison."
-        actions={
-          <>
-            {demoEnabled && !supabaseConfigured ? (
-              <select
-                aria-label="Demo subscription plan"
-                value={demoPlan}
-                onChange={(event) => {
-                  setDemoPlan(event.target.value as "Free" | "Student Pro" | "Founder Pro");
-                  setReportType("Basic SWOT Report");
-                }}
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold"
-              >
-                <option>Free</option><option>Student Pro</option><option>Founder Pro</option>
-              </select>
-            ) : null}
-            <Badge tone="slate">Plan: {activePlan}</Badge>
-          </>
-        }
-      />
-
-      <div aria-label="Report availability" className="flex flex-wrap gap-2">
-        <Badge tone={freeAvailable ? "green" : "amber"}>Basic SWOT: {freeAvailable ? "Available" : "Used"}</Badge>
-        <Badge tone={entitlements.reportsRemaining > 0 ? "green" : "slate"}>{allowanceLabel}</Badge>
-        <Badge tone={supabaseConfigured ? "green" : "amber"}>{supabaseConfigured ? "Account connected" : "Explicit demo mode"}</Badge>
-      </div>
-
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-        <div className="min-w-0 space-y-4">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="space-y-4">
           <Card>
-            <CardHeader eyebrow="Step 1" title="Select completed Idea Workspace" />
-            <label className="block text-sm font-semibold text-slate-700" htmlFor="report-workspace">Idea Workspace document</label>
-            <select
-              id="report-workspace"
-              value={workspace?.id ?? ""}
-              onChange={(event) => {
-                const selected = workspaceOptions.find((item) => item.id === event.target.value) ?? null;
-                setWorkspace(selected);
-                if (!supabaseConfigured && selected) window.localStorage.setItem("venture-connect-active-workspace", JSON.stringify(selected));
-              }}
-              disabled={!workspaceOptions.length}
-              className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-100"
-            >
-              {!workspaceOptions.length ? <option value="">Create your first Idea Workspace document to generate a report.</option> : null}
-              {workspaceOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold">
-                <span>{workspace?.name ?? "No document selected"}</span>
-                <span>{completion}% complete</span>
-              </div>
-              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                <span>Template: {template?.label ?? "Not selected"}</span>
-                <span>Status: {workspace?.status ?? "Not selected"}</span>
-              </div>
-              <ProgressBar value={completion} className="mt-3" />
-              <p className={`mt-3 text-sm font-medium ${documentReady ? "text-emerald-700" : "text-amber-800"}`}>
-                {documentReady
-                  ? "Document complete and ready for report generation."
-                  : "Complete all required Idea Workspace sections before generating this report."}
-              </p>
-            </div>
+            <CardHeader eyebrow="Step 1" title="Select your startup idea" />
+            <label htmlFor="report-workspace" className="text-sm font-semibold text-slate-700">Completed Startup Template</label>
+            <select id="report-workspace" value={workspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setConfirmed(false); }} disabled={!workspaces.length || reportAlreadyGenerated} className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 text-sm disabled:bg-slate-100"><option value="">Select a startup idea</option>{workspaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4"><div className="flex items-center justify-between gap-3 text-sm font-semibold"><span>{workspace?.name ?? "No startup selected"}</span><span>{completion}%</span></div><ProgressBar value={completion} className="mt-3" /><p className="mt-3 text-sm text-slate-600">Status: {workspace?.status ?? "Not selected"}. {documentReady ? "Ready for analysis." : "Complete every section and mark the document Complete first."}</p></div>
           </Card>
 
           <Card>
-            <CardHeader eyebrow="Step 2" title="Choose report type" />
-            <div className="grid gap-3 sm:grid-cols-2">
-              {reportOptions.map((item) => {
-                const selected = reportType === item.title;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => setReportType(item.title)}
-                    className={`min-h-28 rounded-xl border p-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${selected ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 bg-white hover:border-blue-300"}`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-semibold text-slate-950">{item.title}</p>
-                      {item.locked ? <LockKeyhole size={16} className="shrink-0 text-slate-500" /> : null}
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <Badge tone="slate">{item.plan}</Badge>
-                      <Badge tone={item.locked ? "amber" : "green"}>{item.locked ? "Locked" : item.title === "Basic SWOT Report" ? "Free" : "Available"}</Badge>
-                    </div>
-                    <p className="mt-2 text-xs leading-5 text-slate-500">{item.subtitle}</p>
-                  </button>
-                );
-              })}
-            </div>
+            <CardHeader eyebrow="Step 2" title="Review what will be analysed" />
+            {workspace ? <dl className="grid gap-3 sm:grid-cols-2">{getTemplateDef("startup").sections.map((section) => <div key={section.key} className="rounded-lg border border-slate-200 p-3"><dt className="text-sm font-semibold">{section.label}</dt><dd className="mt-1 line-clamp-3 text-xs leading-5 text-slate-500">{workspace.sections[section.key] || "Not completed"}</dd></div>)}</dl> : <p className="text-sm text-slate-600">Select a startup idea to review its sections.</p>}
           </Card>
+
+          {report ? <Card>
+            <div className="flex flex-wrap items-start justify-between gap-3"><CardHeader eyebrow="Saved result" title={report.startupName || workspace?.name || "VC Readiness Report"} /><Button variant="secondary" onClick={download}><Download size={16} />Export PDF</Button></div>
+            <div className="grid gap-4 sm:grid-cols-[160px_1fr]"><div className="rounded-xl bg-slate-950 p-5 text-white"><p className="text-xs uppercase tracking-wide text-slate-300">Overall readiness</p><p className="mt-2 text-4xl font-semibold">{report.overallScore}</p><p className="mt-2 text-sm text-slate-300">{report.finalRecommendation}</p></div><div><h2 className="font-semibold">Short readiness summary</h2><p className="mt-2 text-sm leading-6 text-slate-600">{report.summary}</p></div></div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{report.sections.filter((section) => typeof section.score === "number").map((section) => <div key={section.title} className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">{section.title}</p><p className="mt-1 text-xl font-semibold">{section.score}/100</p></div>)}</div>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">{report.sections.filter((section) => section.items?.length).map((section) => <section key={section.title} className="rounded-lg border border-slate-200 p-4"><h2 className="font-semibold">{section.title}</h2><ul className="mt-2 space-y-2 text-sm leading-6 text-slate-600">{section.items?.slice(0, 5).map((item) => <li key={item}>• {item}</li>)}</ul></section>)}</div>
+            <section className="mt-5 rounded-lg border border-blue-100 bg-blue-50 p-4"><h2 className="font-semibold text-blue-950">Five priority improvements</h2><ol className="mt-2 space-y-2 text-sm leading-6 text-blue-900">{report.improvementSuggestions.slice(0, 5).map((item, index) => <li key={item}>{index + 1}. {item}</li>)}</ol></section>
+            <p className="mt-4 text-xs leading-5 text-slate-500">This report is educational and is not investment advice, a funding recommendation, or an incubation decision.</p>
+          </Card> : null}
         </div>
 
-        <aside className="min-w-0 space-y-4 xl:sticky xl:top-24 xl:self-start">
-          <Card>
-            <CardHeader eyebrow="Steps 3 & 4" title="Review allowance and generate" />
-            <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-1">
-              <div className="rounded-xl bg-slate-50 p-3"><dt className="text-xs text-slate-500">Selected document</dt><dd className="mt-1 font-semibold text-slate-950">{workspace?.name ?? "Not selected"}</dd></div>
-              <div className="rounded-xl bg-slate-50 p-3"><dt className="text-xs text-slate-500">Report type</dt><dd className="mt-1 font-semibold text-slate-950">{reportType}</dd></div>
-              <div className="rounded-xl bg-slate-50 p-3"><dt className="text-xs text-slate-500">Allowance</dt><dd className="mt-1 font-semibold text-slate-950">{reportType === "Basic SWOT Report" ? (freeAvailable ? "Free report available" : "Free report already used") : allowanceLabel}</dd></div>
-            </dl>
-            {!reportUnlocked ? (
-              <Link href="/pricing" className="mt-4 block"><Button className="w-full" variant="secondary"><LockKeyhole size={16} />View upgrade options</Button></Link>
-            ) : null}
-            <Button className="mt-4 h-12 w-full" onClick={handleGenerate} disabled={loading || !canGenerate}>
-              {reportType === "Basic SWOT Report" ? <Wand2 size={17} /> : <Sparkles size={17} />}
-              {loading ? "Generating report..." : "Generate Report"}
-            </Button>
-            {!canGenerate ? (
-              <p className="mt-3 text-sm leading-5 text-slate-600">
-                {!documentReady ? "Complete all required Idea Workspace sections before generating this report." : !reportUnlocked ? `${reportType} requires ${suiteItem.plan}.` : "Your report allowance is not currently available."}
-              </p>
-            ) : null}
-            <p role="status" aria-live="polite" className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm leading-5 text-blue-900">{status}</p>
-            <p className="mt-3 text-xs leading-5 text-slate-500">Reports support founder preparation and are not investment guarantees.</p>
+        <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+          <Card><CardHeader eyebrow="Step 3" title="Confirm and generate" /><div className="space-y-3 text-sm"><p><strong>Startup:</strong> {workspace?.name ?? "Not selected"}</p><p><strong>Report allowance:</strong> {reportAlreadyGenerated ? "Used" : "One report available"}</p><p><strong>Report:</strong> Basic VC Readiness Report</p></div>
+            {!reportAlreadyGenerated ? <label className="mt-5 flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} className="mt-1" /><span>I confirm that the selected Startup Template is accurate and understand that the report is educational, not investment advice.</span></label> : <StatusMessage tone="success" className="mt-5">Your one pilot report is saved. Refreshing or reopening this page will not regenerate it.</StatusMessage>}
+            <Button className="mt-4 min-h-12 w-full" onClick={() => void generate()} disabled={!canGenerate}><FileChartColumn size={17} />{loading ? "Generating report..." : reportAlreadyGenerated ? "Pilot report already generated" : "Generate VC Readiness Report"}</Button>
+            {!documentReady && !reportAlreadyGenerated ? <p className="mt-3 text-sm text-slate-600">Complete and mark the Startup Template Complete before generating.</p> : null}
+            <p role="status" aria-live="polite" className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm leading-5 text-blue-900">{status}</p>
           </Card>
-
-          <Card>
-            <CardHeader eyebrow="Step 5" title="View and save reports" />
-            {history.length ? (
-              <div className="space-y-2">
-                {history.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => { setReport(item.report); setReportSource(null); }}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-blue-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                  >
-                    <div className="flex items-center justify-between gap-3"><Badge>{item.report.reportType}</Badge><span className="font-semibold text-primary">{item.report.overallScore}/100</span></div>
-                    <p className="mt-2 text-sm font-semibold text-slate-950">{item.workspaceName}</p>
-                    <p className="mt-1 text-xs text-slate-500">{new Date(item.report.generatedAt).toLocaleString()}</p>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm leading-6 text-slate-600">Generated reports will appear here after successful generation.</div>
-            )}
-          </Card>
+          <Card><CardHeader eyebrow="Report history" title="Saved pilot report" />{history.length ? <button type="button" onClick={() => setReport(history[0].report)} className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><div className="flex items-center justify-between"><Badge>VC Readiness Report</Badge><strong>{history[0].report.overallScore}/100</strong></div><p className="mt-2 text-sm text-slate-600">{history[0].workspaceName}</p></button> : <p className="text-sm leading-6 text-slate-600">Your saved report will appear here after successful generation.</p>}</Card>
         </aside>
       </div>
-
-      {report ? (
-        <Card>
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge>{report.reportType}</Badge>
-              {reportSource === "mock" ? <Badge tone="amber">Development sample</Badge> : null}
-              {reportSource === "openai" ? <Badge tone="green">Generated report</Badge> : null}
-            </div>
-            <Button variant="secondary" onClick={handleDownload}><Download size={16} />Export PDF</Button>
-          </div>
-          <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-            <section className="rounded-xl border border-slate-200 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Executive summary</p>
-              <p className="mt-3 text-sm leading-6 text-slate-600">{report.summary ?? "Review the report sections below for detailed findings."}</p>
-            </section>
-            <section className="rounded-xl border border-blue-100 bg-blue-50 p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Readiness score</p>
-              <p className="mt-2 text-4xl font-semibold text-slate-950">{report.overallScore}<span className="text-base text-slate-500">/100</span></p>
-              <ProgressBar value={report.overallScore} className="mt-3" />
-              <p className="mt-3 text-sm font-semibold text-blue-900">Readiness status: {report.finalRecommendation ?? "Review required"}</p>
-            </section>
-          </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {report.sections.map((item) => (
-              <section key={item.title} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex items-center justify-between gap-3"><h3 className="font-semibold text-slate-950">{item.title}</h3>{typeof item.score === "number" ? <Badge>{item.score}/100</Badge> : null}</div>
-                {item.body ? <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p> : null}
-                {item.items?.length ? <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">{item.items.map((entry) => <li key={entry}>{entry}</li>)}</ul> : null}
-              </section>
-            ))}
-          </div>
-          <section className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
-            <h3 className="font-semibold text-blue-900">Recommendations and priority next steps</h3>
-            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-              {report.improvementSuggestions.map((suggestion) => <p key={suggestion} className="rounded-xl bg-white p-3 text-sm leading-6 text-blue-900">{suggestion}</p>)}
-            </div>
-          </section>
-        </Card>
-      ) : null}
     </div>
   );
 }

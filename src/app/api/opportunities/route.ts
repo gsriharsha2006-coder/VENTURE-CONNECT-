@@ -9,6 +9,7 @@ import {
 } from "@/lib/opportunities/application-methods";
 import type { ApplicationMethod, OpportunityType } from "@/lib/types";
 import { AuthorizationError, requireRole } from "@/lib/auth/server";
+import { isPilotOpportunityType } from "@/lib/pilot/config";
 
 export async function GET(request: Request) {
   const demoEnabled = isDemoDataEnabled();
@@ -21,31 +22,32 @@ export async function GET(request: Request) {
     const matchesDomain = !domain || domain === "All" || opportunity.domain === domain;
     const matchesLocation = !location || location === "All" || opportunity.location === location;
     const matchesType = !type || type === "All" || opportunity.type === type;
-    return matchesDomain && matchesLocation && matchesType;
+    const pilotType = opportunity.opportunity_type === "Incubator program" || opportunity.opportunity_type === "Hackathon";
+    return pilotType && matchesDomain && matchesLocation && matchesType;
   });
 
   return NextResponse.json({
     data: filtered,
-    meta: { source: demoEnabled ? "explicit-demo" : "database-required" },
-    plannedMonetization: {
-      postingFeeInr: 100,
-      applicationFeeAfterFirst100Inr: 5
-    }
+    meta: { source: demoEnabled ? "explicit-demo" : "database-required" }
   });
 }
 
 export async function POST(request: Request) {
   try {
-    const { authUserId, profile, role, supabase } = await requireRole(["investor", "incubator", "hackathon_organizer", "event_organizer"]);
+    const { authUserId, profile, role, supabase } = await requireRole(["incubator", "hackathon_organizer"]);
     const body = await request.json() as Record<string, unknown>;
     const opportunityType = String(body.opportunity_type ?? body.type ?? "Other") as OpportunityType;
-    const organiserRole = role === "hackathon_organizer" || role === "event_organizer";
+    if (!isPilotOpportunityType(opportunityType)) return NextResponse.json({ error: "The pilot supports only incubation programs and hackathons." }, { status: 400 });
+    if ((role === "incubator" && opportunityType !== "Incubator program") || (role === "hackathon_organizer" && opportunityType !== "Hackathon")) {
+      throw new AuthorizationError(403, "This organisation role cannot publish that opportunity type.");
+    }
+    const organiserRole = role === "hackathon_organizer";
     const applicationMethod = String(body.application_method ?? defaultApplicationMethodForType(opportunityType)) as ApplicationMethod;
     if (organiserRole && !["internal_registration", "external_registration"].includes(applicationMethod)) {
       return NextResponse.json({ error: "Events must use an internal organiser form or an external official registration." }, { status: 400 });
     }
     if (!organiserRole && applicationMethod !== "idea_workspace_application") {
-      return NextResponse.json({ error: "Investor and incubator opportunities must use Apply with Idea." }, { status: 400 });
+      return NextResponse.json({ error: "Incubation programs must use Apply with Idea." }, { status: 400 });
     }
     if (!String(body.title ?? "").trim() || !String(body.deadline ?? "").trim() || !String(body.guidelines ?? "").trim()) {
       return NextResponse.json({ error: "Title, description, and deadline are required." }, { status: 400 });
@@ -84,13 +86,15 @@ export async function POST(request: Request) {
       contact_email: String(body.contact_email ?? "") || null,
       eligibility_rules: body.eligibility_rules ?? {},
       required_application_fields: Array.isArray(body.required_application_fields) ? body.required_application_fields : [],
+      status: body.status === "draft" ? "draft" : "published",
       verified: false,
       trending: false
     }).select("id, title, application_method").single();
     if (error || !opportunity) throw new Error("Opportunity could not be published.");
 
     if (applicationMethod === "internal_registration") {
-      const { data: form, error: formError } = await db.from("opportunity_forms").insert({ opportunity_id: opportunity.id, organisation_id: membership.organisation_id, created_by_profile_id: profile.id, title: `${opportunity.title} registration`, description: "Organiser-created registration form", application_mode: "internal_form", status: "published", is_active: true, published_at: new Date().toISOString() }).select("id").single();
+      const publishing = body.status !== "draft";
+      const { data: form, error: formError } = await db.from("opportunity_forms").insert({ opportunity_id: opportunity.id, organisation_id: membership.organisation_id, created_by_profile_id: profile.id, title: `${opportunity.title} registration`, description: "Organiser-created registration form", application_mode: "internal_form", status: publishing ? "published" : "draft", is_active: publishing, published_at: publishing ? new Date().toISOString() : null }).select("id").single();
       if (formError || !form) throw new Error("Opportunity was created, but its registration form could not be published.");
       const { data: section, error: sectionError } = await db.from("opportunity_form_sections").insert({ form_id: form.id, title: "Applicant and team details", description: "Information required by the organiser", sort_order: 0 }).select("id").single();
       if (sectionError || !section) throw new Error("Registration form section could not be created.");

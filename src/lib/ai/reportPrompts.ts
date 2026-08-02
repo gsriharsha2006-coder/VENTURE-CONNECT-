@@ -15,7 +15,7 @@ export const REPORT_SYSTEM_INSTRUCTION = [
 
 const reportInstructions: Record<ReportType, string> = {
   "Basic SWOT Report":
-    "Create a concise entry-level report with startupName, executiveSummary, strengths, weaknesses, opportunities, threats, validationScore, priorityActions, and readinessStatus.",
+    "Create one concise educational pilot report with executiveSummary, problemClarity, solutionClarity, customerClarity, validationLevel, businessModelClarity, teamReadiness, strengths, weaknesses, exactly five priorityActions, and a disclaimer that it is educational and not investment advice.",
   "Premium SWOT Analysis":
     "Create an evidence-led premium SWOT with detailedStrengths, detailedWeaknesses, marketOpportunities, executionThreats, founderReadiness, riskRating, and prioritizedImprovements.",
   "Full Brief Report":

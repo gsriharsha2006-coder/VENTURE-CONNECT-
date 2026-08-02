@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Venture Connect | Startup preparation workspace",
+  title: "Venture Connect | VC Readiness Platform",
   description:
     "Structure startup ideas, validate assumptions, prepare applications, and discover relevant programmes.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),

@@ -12,6 +12,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
       p_founder_profile_id: profile.id
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 409 });
+    await db.from("pilot_events").insert({ profile_id: profile.id, event_name: "incubation_application_submitted", metadata: { applicationId: id } });
     return NextResponse.json({ submission: data });
   } catch (error) {
     if (error instanceof AuthorizationError) return NextResponse.json({ error: error.message }, { status: error.status });

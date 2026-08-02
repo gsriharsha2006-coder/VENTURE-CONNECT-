@@ -8,9 +8,8 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireRole } from "@/lib/auth/server";
 import { opportunityFromRow } from "@/lib/data/opportunities";
-import { SponsoredCard } from "@/components/ads/SponsoredCard";
-import type { SponsoredCreative } from "@/lib/ads/types";
 import { validateExternalRegistrationUrl } from "@/lib/opportunities/application-methods";
+import { isPilotOpportunityType } from "@/lib/pilot/config";
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -18,18 +17,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const db = supabase as unknown as SupabaseClient;
   const { data: opportunityRow } = await db.from("opportunities").select("*").eq("id", id).maybeSingle();
   const opportunity = opportunityRow ? opportunityFromRow(opportunityRow as Parameters<typeof opportunityFromRow>[0]) : null;
-  if (!opportunity) notFound();
-  let promotion: SponsoredCreative | null = null;
-  if (opportunity.is_sponsored) {
-    const today = new Date().toISOString().slice(0, 10);
-    const { data: sponsored } = await db.from("sponsored_opportunities").select("campaign_id, campaign:ad_campaigns(id, status, start_date, end_date, placements, creatives:ad_creatives(id, sponsor_name, headline, description, cta_label, cta_url, logo_url, promoted_label, approved_status))").eq("opportunity_id", id).maybeSingle();
-    const campaign = Array.isArray(sponsored?.campaign) ? sponsored?.campaign[0] : sponsored?.campaign;
-    const creatives = Array.isArray(campaign?.creatives) ? campaign.creatives : [];
-    const creative = creatives.find((item) => item.approved_status === "approved");
-    if (campaign?.status === "active" && campaign.start_date <= today && campaign.end_date >= today && creative) {
-      promotion = { id: creative.id, campaignId: campaign.id, sponsorName: creative.sponsor_name ?? opportunity.organizer_name, sponsorLogoUrl: creative.logo_url ?? undefined, headline: creative.headline, description: creative.description, ctaLabel: creative.cta_label, ctaUrl: creative.cta_url, promotedLabel: creative.promoted_label, placements: campaign.placements } as SponsoredCreative;
-    }
-  }
+  if (!opportunity || !isPilotOpportunityType(opportunity.opportunity_type)) notFound();
   const isHackathon = opportunity.opportunity_type === "Hackathon";
   const officialWebsite = validateExternalRegistrationUrl(opportunity.official_website);
   const officialRules = validateExternalRegistrationUrl(opportunity.official_rules_url);
@@ -87,7 +75,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
           {isHackathon ? (
             <>
               <Card>
-                <CardHeader eyebrow="Event details" title="Format, dates, and team" />
+                <CardHeader eyebrow="Hackathon details" title="Format, dates, and team" />
                 <div className="grid gap-3 text-sm text-slate-700 sm:grid-cols-2">
                   <p className="rounded-lg border border-slate-200 bg-slate-50 p-3">Dates: {opportunity.event_start_date ?? "TBA"} to {opportunity.event_end_date ?? "TBA"}</p>
                   <p className="rounded-lg border border-slate-200 bg-slate-50 p-3">Format: {opportunity.mode}</p>
@@ -120,7 +108,6 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         </div>
 
         <aside className="space-y-4">
-          {promotion ? <SponsoredCard creative={promotion} placement="sponsored_opportunity" /> : null}
           <OpportunityApplicationPanel opportunity={opportunity} />
           <Card>
             <CardHeader eyebrow="Deadline" title={opportunity.deadline} />
@@ -128,7 +115,6 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
               <p className="flex items-center gap-2"><CalendarClock size={16} className="text-primary" /> Apply before the listed deadline.</p>
               <p className="flex items-center gap-2"><MapPin size={16} className="text-primary" /> {opportunity.location} / {opportunity.mode}</p>
               {opportunity.team_size ? <p className="flex items-center gap-2"><UsersRound size={16} className="text-primary" /> {opportunity.team_size}</p> : null}
-              <p>Quality index: {opportunity.trust_score}/100</p>
             </div>
           </Card>
           <Card>

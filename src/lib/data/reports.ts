@@ -1,5 +1,7 @@
 import { isStoredVcReportContent } from "@/lib/ai/reportSchema";
 import { getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
+import { isDemoDataEnabled } from "@/lib/demo-data";
+import { pilotDemoReadinessReport } from "@/lib/pilot/demo-data";
 import type { ReportType, VcReportContent } from "@/lib/types";
 
 export type ReportHistoryItem = {
@@ -33,7 +35,7 @@ export function generateMockReport(reportType: ReportType = "Basic SWOT Report")
 export async function getGeneratedReports(): Promise<ReportHistoryItem[]> {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("load VC Readiness Report history");
-  if (!supabase || !userId) return [];
+  if (!supabase || !userId) return isDemoDataEnabled() ? [{ id: "demo-readiness-report", workspaceId: "demo-workspace-campusflow", workspaceName: "CampusFlow", report: pilotDemoReadinessReport }] : [];
 
   const { data, error } = await supabase
     .from("vc_reports")

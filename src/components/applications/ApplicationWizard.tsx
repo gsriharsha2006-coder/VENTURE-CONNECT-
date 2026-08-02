@@ -32,7 +32,22 @@ const fields = [
 
 function initialAnswers(workspace: WorkspaceOption | undefined, founderName: string) {
   const sections = workspace?.sections ?? {};
-  return Object.fromEntries(fields.map(([key]) => [key, key === "startupName" ? workspace?.title ?? "" : key === "founderName" ? founderName : key === "startupStage" ? workspace?.stage ?? "Idea" : String(sections[key] ?? "")])) as Record<string, string>;
+  const mapped: Record<string, unknown> = {
+    problem: sections.problem,
+    solution: sections.solution,
+    targetCustomer: sections.target_customer,
+    competitors: sections.existing_alternatives,
+    differentiation: sections.existing_alternatives,
+    productTechnology: sections.product_description,
+    businessModel: sections.business_model,
+    customerValidation: sections.customer_validation,
+    traction: sections.progress_traction,
+    team: sections.team,
+    fundingRequirement: sections.funding_requirement,
+    useOfFunds: sections.use_of_funds,
+    risks: sections.risks_assumptions
+  };
+  return Object.fromEntries(fields.map(([key]) => [key, key === "startupName" ? workspace?.title ?? "" : key === "founderName" ? founderName : key === "startupStage" ? workspace?.stage ?? "Idea" : String(mapped[key] ?? sections[key] ?? "")])) as Record<string, string>;
 }
 
 export function ApplicationWizard({ opportunity, workspaces, founderName }: Props) {
@@ -47,6 +62,7 @@ export function ApplicationWizard({ opportunity, workspaces, founderName }: Prop
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [checkCount, setCheckCount] = useState(0);
   const completion = useMemo(() => Math.round(fields.filter(([key]) => answers[key]?.trim()).length / fields.length * 100), [answers]);
 
   useEffect(() => {
@@ -104,7 +120,7 @@ export function ApplicationWizard({ opportunity, workspaces, founderName }: Prop
       const response = await fetch(`/api/applications/${applicationId}/quality-check`, { method: "POST" });
       const payload = await response.json() as { result?: ApplicationQualityResult; error?: string };
       if (!response.ok || !payload.result) throw new Error(payload.error ?? "Application Quality Check failed.");
-      setQuality(payload.result); setStep(3);
+      setQuality(payload.result); setCheckCount((count) => count + 1); setStep(3);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Application Quality Check failed."); }
     finally { setBusy(false); }
   }
@@ -138,7 +154,17 @@ export function ApplicationWizard({ opportunity, workspaces, founderName }: Prop
 
       {step === 2 ? <Card><div className="flex flex-wrap items-end justify-between gap-3"><CardHeader eyebrow={`Step 2 / ${completion}% complete`} title="Complete the pitch documentation" /><Button variant="secondary" disabled={busy} onClick={() => void saveDraft()}><Save size={16} />Save draft</Button></div><div className="mt-5 grid gap-4 md:grid-cols-2">{fields.map(([key, label, kind]) => <label key={key} className={kind === "long" ? "md:col-span-2" : ""}><span className="text-sm font-semibold text-slate-700">{label}</span>{kind === "long" ? <textarea value={answers[key]} onChange={(event) => setAnswers((current) => ({ ...current, [key]: event.target.value }))} rows={4} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /> : <input type={kind} value={answers[key]} onChange={(event) => setAnswers((current) => ({ ...current, [key]: event.target.value }))} className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 text-sm" />}</label>)}</div><div className="mt-6 flex flex-wrap justify-between gap-3"><Button variant="secondary" onClick={() => setStep(1)}><ChevronLeft size={16} />Back</Button><Button disabled={busy} onClick={() => void checkApplication()}>{busy ? <LoaderCircle className="animate-spin" size={16} /> : <FileCheck2 size={16} />}Check Application</Button></div></Card> : null}
 
-      {step === 3 && quality ? <Card><div className="flex flex-wrap items-start justify-between gap-4"><CardHeader eyebrow="Application Quality Check" title={`${quality.qualityScore}/100`} /><Badge tone={quality.status === "ready_to_submit" ? "green" : quality.status === "eligibility_mismatch" ? "red" : "amber"}>{quality.status.replaceAll("_", " ")}</Badge></div><p className="text-sm leading-6 text-slate-600">{quality.summary}</p><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[["Completeness", quality.completenessScore], ["Meaningful content", quality.meaningfulContentScore], ["Problem-solution", quality.problemSolutionScore], ["Customer & market", quality.customerMarketScore], ["Business model", quality.businessModelScore], ["Validation & traction", quality.validationTractionScore], ["Consistency", quality.consistencyScore], ["Funding clarity", quality.fundingClarityScore]].map(([label, score]) => <div key={String(label)} className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-lg font-semibold">{String(score)}</p></div>)}</div>{quality.issues.length ? <div className="mt-5"><h2 className="text-sm font-semibold">Issues to correct</h2><ul className="mt-2 space-y-2">{quality.issues.map((issue, index) => <li key={`${issue.field}-${index}`} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><strong>{issue.field}:</strong> {issue.message} {issue.suggestedAction}</li>)}</ul></div> : null}<div className="mt-6 flex flex-wrap justify-between gap-3"><Button variant="secondary" onClick={() => setStep(2)}><ChevronLeft size={16} />Edit application</Button>{quality.status === "ready_to_submit" ? <Button onClick={() => setStep(4)}><ChevronRight size={16} />Preview application</Button> : <Button onClick={() => void checkApplication()} disabled={busy}>Recheck application</Button>}</div></Card> : null}
+      {step === 3 && quality ? <Card>
+        <div className="flex flex-wrap items-start justify-between gap-4"><CardHeader eyebrow="Application Quality Check" title={`${quality.qualityScore}/100`} /><Badge tone={quality.status === "ready_to_submit" ? "green" : quality.status === "eligibility_mismatch" ? "red" : "amber"}>{quality.status.replaceAll("_", " ")}</Badge></div>
+        <p className="text-sm leading-6 text-slate-600">{quality.summary}</p>
+        <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4"><h2 className="text-sm font-semibold">Organisation eligibility</h2>{quality.eligibilityMismatches.length ? <ul className="mt-2 space-y-1 text-sm text-rose-700">{quality.eligibilityMismatches.map((item) => <li key={item}>• {item}</li>)}</ul> : <p className="mt-2 text-sm text-emerald-700">All configured eligibility rules currently match.</p>}</div>
+        {quality.strengths.length ? <section className="mt-5"><h2 className="text-sm font-semibold">Strengths</h2><ul className="mt-2 space-y-2 text-sm text-slate-600">{quality.strengths.slice(0, 3).map((item) => <li key={item}>• {item}</li>)}</ul></section> : null}
+        {quality.issues.length ? <section className="mt-5"><h2 className="text-sm font-semibold">Major issues and field-specific corrections</h2><ul className="mt-2 space-y-2">{quality.issues.slice(0, 3).map((issue, index) => <li key={`${issue.field}-${index}`} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><strong>{issue.field}:</strong> {issue.message} {issue.suggestedAction}</li>)}</ul></section> : null}
+        {quality.unsupportedClaims.length ? <section className="mt-5"><h2 className="text-sm font-semibold">Unsupported claims</h2><ul className="mt-2 text-sm text-slate-600">{quality.unsupportedClaims.map((item) => <li key={item}>• {item}</li>)}</ul></section> : null}
+        {quality.contradictoryClaims.length ? <section className="mt-5"><h2 className="text-sm font-semibold">Claims requiring clarification</h2><ul className="mt-2 text-sm text-slate-600">{quality.contradictoryClaims.map((item) => <li key={item}>• {item}</li>)}</ul></section> : null}
+        <p className="mt-5 text-xs text-slate-500">Pilot allowance: {Math.min(checkCount, 2)} of 2 checks used. The incubator makes the final decision.</p>
+        <div className="mt-6 flex flex-wrap justify-between gap-3"><Button variant="secondary" onClick={() => setStep(2)}><ChevronLeft size={16} />Edit Application</Button>{quality.status === "ready_to_submit" ? <Button onClick={() => setStep(4)}><ChevronRight size={16} />Preview Application</Button> : <Button onClick={() => void checkApplication()} disabled={busy || checkCount >= 2}>Recheck Application</Button>}</div>
+      </Card> : null}
 
       {step === 4 && quality ? <Card><CardHeader eyebrow="Step 4" title="Confirm the fixed submission snapshot" /><p className="text-sm text-slate-600">Review the exact answers that will be shared with {opportunity.organisationName}. Later master-workspace edits will not change this submission.</p><dl className="mt-5 divide-y divide-slate-200 border-y border-slate-200">{fields.map(([key, label]) => <div key={key} className="grid gap-2 py-3 md:grid-cols-[220px_1fr]"><dt className="text-sm font-semibold text-slate-700">{label}</dt><dd className="whitespace-pre-wrap text-sm leading-6 text-slate-600">{answers[key] || "Not provided"}</dd></div>)}</dl><label className="mt-5 flex items-start gap-3 rounded-lg border border-slate-200 p-4 text-sm"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} className="mt-1" /><span>I confirm that these answers are accurate and ready for human review by the selected organisation.</span></label><div className="mt-5 flex flex-wrap justify-between gap-3"><Button variant="secondary" onClick={() => setStep(3)}><ChevronLeft size={16} />Back</Button><Button disabled={!confirmed || busy || quality.status !== "ready_to_submit"} onClick={() => void submitApplication()}>{busy ? <LoaderCircle className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}Submit application</Button></div></Card> : null}
     </div>

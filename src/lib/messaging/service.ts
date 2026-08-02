@@ -78,8 +78,8 @@ export async function createConversationForOrganisationAction(applicationId: str
     authorisedForApplication = Boolean(membership);
   }
 
-  if (!canInitiateInstitutionConversation(actor.role, "interested", authorisedForApplication)) {
-    throw new Error("Only an authorised investor or institution can mark this application Interested.");
+  if (!canInitiateInstitutionConversation(actor.role, reason, authorisedForApplication)) {
+    throw new Error("Only an authorised incubator can open this application conversation.");
   }
 
   const applicationStatus = reason === "interested" ? "interested" : "needs_changes";
@@ -127,7 +127,7 @@ export async function createConversationForOrganisationAction(applicationId: str
 
   if (convError) throw convError;
 
-  const actorMemberRole = actor.role === "investor" ? "investor" : "institution";
+  const actorMemberRole = "institution";
   const { error: membersError } = await supabase.from("conversation_members").insert([
     {
       conversation_id: conversation.id,
@@ -144,6 +144,12 @@ export async function createConversationForOrganisationAction(applicationId: str
   ]);
   if (membersError) throw membersError;
 
+  await supabase.from("pilot_events").insert({
+    profile_id: actorProfileId,
+    event_name: "conversation_created",
+    metadata: { applicationId, conversationId: conversation.id, reason }
+  });
+
   await supabase.from("messages").insert({
     conversation_id: conversation.id,
     application_id: applicationId,
@@ -156,7 +162,7 @@ export async function createConversationForOrganisationAction(applicationId: str
 
   await createNotification({
     profileId: founderProfileId,
-    type: reason === "interested" ? "Investor Interested" : "Information Requested",
+    type: reason === "interested" ? "Incubator Interested" : "Information Requested",
     title: reason === "interested" ? "An organisation is interested in your startup" : "An organisation requested more information",
     body: reason === "interested" ? "An organisation reviewed your submission and wants to connect. Messaging is now available." : "Open the new conversation to review the organisation's request and reply.",
     metadata: { conversationId: conversation.id, applicationId },

@@ -1,4 +1,4 @@
-import { applications as mockApplications } from "@/lib/data";
+import { pilotDemoApplications } from "@/lib/pilot/demo-data";
 import { backendUnavailableError, getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
 import { isDemoDataEnabled } from "@/lib/demo-data";
 import type { Application, ApplicationMethod } from "@/lib/types";
@@ -6,7 +6,7 @@ import type { Application, ApplicationMethod } from "@/lib/types";
 export async function getApplications(): Promise<Application[]> {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("list applications");
-  if (!supabase || !userId) return isDemoDataEnabled() ? mockApplications : [];
+  if (!supabase || !userId) return isDemoDataEnabled() ? pilotDemoApplications : [];
 
   const { data, error } = await supabase
     .from("applications")
@@ -25,7 +25,7 @@ export async function getApplications(): Promise<Application[]> {
     founder: "Current founder",
     reviewer: "Opportunity owner",
     opportunity: row.opportunity_id ?? "Opportunity",
-    opportunityType: "Investor opportunity",
+    opportunityType: "Incubator program",
     status: row.status === "interested" ? "Interested" : "Submitted",
     submittedAt: row.submitted_at,
     reviewedAt: row.reviewed_at ?? undefined,

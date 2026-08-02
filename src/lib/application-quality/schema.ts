@@ -1,6 +1,6 @@
 import type { EligibilityResult, QualityIssue, SemanticQualityResult } from "./types";
 
-const statuses = new Set(["ready_to_submit", "needs_revision", "incomplete", "eligibility_mismatch", "manual_review_required"]);
+const statuses = new Set(["ready_to_submit", "needs_revision", "incomplete", "eligibility_mismatch", "manual_review"]);
 const severities = new Set(["low", "medium", "high"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

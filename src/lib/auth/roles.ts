@@ -44,11 +44,10 @@ export function toUserRole(role: string | null | undefined): UserRole {
 
 export function dashboardForRole(role: UserRole | DatabaseRole | string) {
   const databaseRole = toDatabaseRole(role);
-  if (["investor", "incubator", "hackathon_organizer", "event_organizer"].includes(databaseRole)) {
-    return "/investor/discover";
-  }
-  if (databaseRole === "service_provider") return "/provider/dashboard";
-  if (databaseRole === "validator") return "/validator/dashboard";
+  if (["incubator", "hackathon_organizer"].includes(databaseRole)) return "/organisation";
   if (databaseRole === "admin") return "/admin";
+  if (["investor", "event_organizer", "service_provider", "validator"].includes(databaseRole)) {
+    return "/pilot-access-unavailable";
+  }
   return "/dashboard";
 }

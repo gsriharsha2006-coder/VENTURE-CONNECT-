@@ -3,10 +3,8 @@ import { NextResponse } from "next/server";
 import { AuthorizationError, requireRole } from "@/lib/auth/server";
 
 const organisationTypeForRole = {
-  investor: "investor",
   incubator: "incubator",
-  hackathon_organizer: "hackathon_organiser",
-  event_organizer: "event_organiser"
+  hackathon_organizer: "hackathon_organiser"
 } as const;
 
 function slugify(value: string) {
@@ -16,7 +14,7 @@ function slugify(value: string) {
 
 export async function POST(request: Request) {
   try {
-    const context = await requireRole(["investor", "incubator", "hackathon_organizer", "event_organizer"]);
+    const context = await requireRole(["incubator", "hackathon_organizer"]);
     const body = await request.json() as { name?: string; website?: string; location?: string; description?: string };
     const name = body.name?.trim() ?? "";
     if (name.length < 2 || name.length > 160) return NextResponse.json({ error: "Organisation name must contain 2 to 160 characters." }, { status: 400 });

@@ -4,8 +4,8 @@ import { VentureLogo } from "@/components/brand/VentureLogo";
 
 const journey = [
   { icon: FileCheck2, label: "Build a structured startup document" },
-  { icon: ShieldCheck, label: "Validate it with a human expert" },
-  { icon: Send, label: "Apply with stronger evidence" }
+  { icon: ShieldCheck, label: "Improve incubation applications before review" },
+  { icon: Send, label: "Apply to incubation programmes or hackathons" }
 ];
 
 export function AuthFrame({
@@ -33,7 +33,7 @@ export function AuthFrame({
               Move from an idea to a credible application.
             </h1>
             <p className="mt-4 text-base leading-7 text-slate-300">
-              Venture Connect keeps documents, human validation, opportunities, applications, and interest-gated messaging in one professional system.
+              Venture Connect keeps the Startup Template, Application Quality Check, pilot opportunities, and interest-gated messaging in one professional system.
             </p>
             <div className="mt-9 space-y-3">
               {journey.map((item) => {

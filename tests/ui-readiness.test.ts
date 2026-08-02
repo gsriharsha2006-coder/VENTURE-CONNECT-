@@ -11,8 +11,6 @@ function source(path: string) {
 test("public routes render independently of Supabase server authentication", () => {
   const publicSources = [
     source("src/components/landing/LandingPage.tsx"),
-    source("src/app/pricing/page.tsx"),
-    source("src/app/validators/page.tsx"),
     source("src/app/auth/page.tsx"),
     source("src/app/auth/register/page.tsx"),
     source("src/app/auth/recover/page.tsx")
@@ -74,10 +72,12 @@ test("critical layouts include constrained responsive behavior", () => {
   assert.doesNotMatch(`${landing}\n${registration}\n${dashboard}`, /w-screen/);
 });
 
-test("unavailable paid actions are visibly disabled and explained", () => {
-  const pricing = source("src/components/subscription/PricingCheckout.tsx");
-  assert.match(pricing, /disabled/);
-  assert.match(pricing, /Paid checkout is unavailable/i);
+test("payments and legacy marketplaces are blocked from the pilot product", () => {
+  const pilotConfig = source("src/lib/pilot/config.ts");
+  assert.match(pilotConfig, /"\/pricing"/);
+  assert.match(pilotConfig, /"\/services"/);
+  assert.match(pilotConfig, /"\/validators"/);
+  assert.match(pilotConfig, /"\/api\/subscriptions"/);
 });
 
 test("public validator directory does not invent verified statistics", () => {

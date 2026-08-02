@@ -46,6 +46,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       updated_at: now
     }).select("id, status, submitted_at").single();
     if (error || !application) throw new Error("Registration could not be submitted.");
+    await service.from("pilot_events").insert({ profile_id: profile.id, event_name: "hackathon_application_submitted", metadata: { applicationId: application.id, opportunityId: id } });
     return NextResponse.json({ application }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthorizationError) return NextResponse.json({ error: error.message }, { status: error.status });

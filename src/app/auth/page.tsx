@@ -75,7 +75,7 @@ export default function SignInPage() {
     <AuthFrame
       eyebrow="Welcome back"
       title="Sign in to Venture Connect"
-      description="Continue working on startup documents, validation requests, applications, and conversations."
+      description="Continue working on your Startup Template, applications, readiness report, and permitted conversations."
     >
       <form onSubmit={handleSubmit} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="space-y-4">

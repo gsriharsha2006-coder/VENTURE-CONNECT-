@@ -14,15 +14,7 @@ const MAX_REQUEST_LENGTH = 64_000;
 const MAX_WORKSPACE_INPUT_LENGTH = 48_000;
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
-const WORKSPACE_TEMPLATES: WorkspaceTemplate[] = [
-  "startup",
-  "ai-project",
-  "hackathon",
-  "saas",
-  "marketing",
-  "student-project",
-  "custom"
-];
+const WORKSPACE_TEMPLATES: WorkspaceTemplate[] = ["startup"];
 
 type PrototypeWorkspace = {
   name: string;
@@ -35,7 +27,6 @@ type ReportRequest = {
   workspaceId: string;
   reportType: ReportType;
   prototypeWorkspace?: PrototypeWorkspace;
-  prototypePlan?: SubscriptionPlan;
 };
 
 type RateBucket = { startedAt: number; count: number };
@@ -99,7 +90,7 @@ async function parseRequest(request: Request): Promise<ReportRequest> {
   }
   if (!isRecord(value)) throw new RequestError(400, "Invalid report request.");
 
-  const allowedKeys = new Set(["requestId", "workspaceId", "reportType", "prototypeWorkspace", "prototypePlan"]);
+  const allowedKeys = new Set(["requestId", "workspaceId", "reportType", "prototypeWorkspace"]);
   if (Object.keys(value).some((key) => !allowedKeys.has(key))) {
     throw new RequestError(400, "Unsupported report request field.");
   }
@@ -111,21 +102,13 @@ async function parseRequest(request: Request): Promise<ReportRequest> {
   const workspaceId = typeof value.workspaceId === "string" ? value.workspaceId.trim() : "";
   if (!workspaceId || workspaceId.length > 128) throw new RequestError(400, "A valid Idea Workspace document ID is required.");
   if (!isReportType(value.reportType)) throw new RequestError(400, "Unsupported VC Readiness Report type.");
-
-  let prototypePlan: SubscriptionPlan | undefined;
-  if (value.prototypePlan !== undefined) {
-    if (value.prototypePlan !== "Free" && value.prototypePlan !== "Student Pro" && value.prototypePlan !== "Founder Pro") {
-      throw new RequestError(400, "Invalid development plan.");
-    }
-    prototypePlan = value.prototypePlan;
-  }
+  if (value.reportType !== "Basic SWOT Report") throw new RequestError(403, "The pilot includes one Basic VC Readiness Report only.");
 
   return {
     requestId,
     workspaceId,
     reportType: value.reportType,
-    ...(value.prototypeWorkspace === undefined ? {} : { prototypeWorkspace: parsePrototypeWorkspace(value.prototypeWorkspace) }),
-    ...(prototypePlan ? { prototypePlan } : {})
+    ...(value.prototypeWorkspace === undefined ? {} : { prototypeWorkspace: parsePrototypeWorkspace(value.prototypeWorkspace) })
   };
 }
 
@@ -189,7 +172,7 @@ export async function POST(request: Request) {
       const completion = completionPercent(body.prototypeWorkspace.sections, body.prototypeWorkspace.template);
       if (completion < 100) throw new RequestError(409, "Complete every required Idea Workspace section before generating a report.");
 
-      const plan = body.prototypePlan ?? "Founder Pro";
+      const plan: SubscriptionPlan = "Free";
       const prototypeProfile: Profile = {
         id: "prototype-founder",
         full_name: "Prototype Founder",
@@ -229,7 +212,7 @@ export async function POST(request: Request) {
       }
     }
 
-    if (body.prototypeWorkspace || body.prototypePlan) {
+    if (body.prototypeWorkspace) {
       throw new RequestError(400, "Prototype report fields are disabled when Supabase is configured.");
     }
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.workspaceId)) {
@@ -252,6 +235,7 @@ export async function POST(request: Request) {
 
     const template = workspace.template_type as WorkspaceTemplate;
     if (!WORKSPACE_TEMPLATES.includes(template)) throw new RequestError(409, "The Idea Workspace template is invalid.");
+    if (template !== "startup") throw new RequestError(409, "The pilot report requires the Startup Template.");
     const sections = sanitizeSections(workspace.sections_json);
     const completion = completionPercent(sections, template);
     if (completion < 100 || Number(workspace.completion_percentage ?? 0) < 100) {
@@ -361,6 +345,12 @@ export async function POST(request: Request) {
           p_score: report.overallScore
         });
         if (saveError || !savedReport) throw persistenceError(saveError?.message);
+
+        await supabase.from("pilot_events").insert({
+          profile_id: profile.id,
+          event_name: "readiness_report_generated",
+          metadata: { workspaceId: body.workspaceId, reportType: body.reportType }
+        });
 
         return NextResponse.json({
           report,

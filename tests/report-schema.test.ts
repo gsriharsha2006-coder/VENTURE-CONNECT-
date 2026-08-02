@@ -13,13 +13,16 @@ const validBasicReport = {
   overallScore: 68,
   finalRecommendation: "Needs Validation",
   executiveSummary: "A promising problem with customer evidence still required.",
+  problemClarity: 72,
+  solutionClarity: 70,
+  customerClarity: 62,
+  validationLevel: 48,
+  businessModelClarity: 59,
+  teamReadiness: 67,
   strengths: ["Clear student workflow"],
   weaknesses: ["Limited interview evidence"],
-  opportunities: ["Incubator pilot"],
-  threats: ["Established alternatives"],
-  validationScore: 58,
   priorityActions: ["Interview ten target users"],
-  readinessStatus: "Needs Validation"
+  disclaimer: "Educational guidance only; this is not investment advice."
 };
 
 test("structured AI output accepts the exact expected report contract", () => {

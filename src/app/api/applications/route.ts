@@ -47,6 +47,7 @@ export async function POST(request: Request) {
       status: "draft"
     }).select("id, status, quality_status, last_saved_at").single();
     if (error || !data) throw new Error("The application draft could not be created.");
+    await db.from("pilot_events").insert({ profile_id: profile.id, event_name: "incubation_application_started", metadata: { applicationId: data.id, opportunityId: opportunity.id } });
     return NextResponse.json({ application: data }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthorizationError) return NextResponse.json({ error: error.message }, { status: error.status });

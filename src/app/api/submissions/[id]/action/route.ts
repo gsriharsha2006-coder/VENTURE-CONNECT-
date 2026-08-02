@@ -10,23 +10,22 @@ export async function POST(
 ) {
   try {
     const { profile, role, supabase } = await requireRole([
-      "investor",
       "incubator",
       "hackathon_organizer",
-      "event_organizer",
       "admin"
     ]);
     const { id } = await params;
     const { action } = await request.json() as { action: "interested" | "request_information" | "under_review" | "shortlist" | "select" | "waitlist" | "decline" | "save" | "reject" | "ignore" };
     const databaseRole = role;
-    if (["shortlist", "select", "waitlist"].includes(action) && !["hackathon_organizer", "event_organizer", "admin"].includes(databaseRole)) {
-      throw new AuthorizationError(403, "Only an authorised event organiser can perform this action.");
+    if (["shortlist", "select", "waitlist"].includes(action) && !["hackathon_organizer", "admin"].includes(databaseRole)) {
+      throw new AuthorizationError(403, "Only an authorised hackathon organiser can perform this action.");
     }
-    if (["interested", "request_information"].includes(action) && ["hackathon_organizer", "event_organizer"].includes(databaseRole)) {
-      throw new AuthorizationError(403, "Event applications do not open investor-style conversations.");
+    if (["interested", "request_information"].includes(action) && databaseRole === "hackathon_organizer") {
+      throw new AuthorizationError(403, "Hackathon registrations do not open direct conversations.");
     }
     if (action === "interested") {
       const conversation = await createConversationFromInterest(id, profile.id);
+      await supabase.from("pilot_events").insert({ profile_id: profile.id, event_name: "incubation_application_interested", metadata: { applicationId: id } });
       return NextResponse.json({ conversation, status: "interested" }, { status: 201 });
     }
     if (action === "request_information") {
@@ -45,6 +44,7 @@ export async function POST(
     if (!status) return NextResponse.json({ error: "Unsupported application action." }, { status: 400 });
     const { data, error } = await db.from("applications").update({ status, decision_by_profile_id: profile.id, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", id).select("id").maybeSingle();
     if (error || !data) throw new Error("Application status could not be updated.");
+    if (action === "under_review") await db.from("pilot_events").insert({ profile_id: profile.id, event_name: "incubation_application_reviewed", metadata: { applicationId: id } });
     return NextResponse.json({ status });
   } catch (error) {
     if (error instanceof AuthorizationError) {

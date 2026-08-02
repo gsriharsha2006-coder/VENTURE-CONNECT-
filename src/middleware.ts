@@ -2,8 +2,9 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { dashboardForRole, toDatabaseRole, type DatabaseRole } from "@/lib/auth/roles";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
+import { isPilotApiDisabled, isPilotPageDisabled } from "@/lib/pilot/config";
 
-type RouteGroup = "founder" | "investor" | "provider" | "validator" | "admin";
+type RouteGroup = "founder" | "organisation" | "admin";
 
 const founderAliases = [
   "/applications",
@@ -20,9 +21,7 @@ const founderAliases = [
 
 function requiredRouteGroup(pathname: string): RouteGroup | null {
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
-  if (pathname === "/validator" || pathname.startsWith("/validator/")) return "validator";
-  if (pathname === "/provider" || pathname.startsWith("/provider/")) return "provider";
-  if (pathname === "/investor-dashboard" || pathname === "/investor" || pathname.startsWith("/investor/")) return "investor";
+  if (pathname === "/organisation" || pathname.startsWith("/organisation/")) return "organisation";
   if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) return "founder";
   if (founderAliases.some((route) => pathname === route || pathname.startsWith(`${route}/`))) return "founder";
   return null;
@@ -30,9 +29,7 @@ function requiredRouteGroup(pathname: string): RouteGroup | null {
 
 function roleCanAccess(role: DatabaseRole, group: RouteGroup) {
   if (group === "founder") return role === "founder";
-  if (group === "investor") return ["investor", "incubator", "hackathon_organizer", "event_organizer"].includes(role);
-  if (group === "provider") return role === "service_provider";
-  if (group === "validator") return role === "validator";
+  if (group === "organisation") return role === "incubator" || role === "hackathon_organizer";
   return role === "admin";
 }
 
@@ -43,6 +40,18 @@ function redirectWithCookies(destination: URL, response: NextResponse) {
 }
 
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  if (isPilotApiDisabled(pathname)) {
+    return NextResponse.json({ error: "This endpoint is disabled for the PACE pilot." }, { status: 404 });
+  }
+  if (pathname.startsWith("/api/")) return NextResponse.next();
+  if (isPilotPageDisabled(pathname)) {
+    const destination = request.nextUrl.clone();
+    destination.pathname = "/";
+    destination.search = "";
+    return NextResponse.redirect(destination);
+  }
+
   const { url, publishableKey } = getSupabasePublicConfig();
   if (!url || !publishableKey) return NextResponse.next();
 
@@ -59,7 +68,6 @@ export async function middleware(request: NextRequest) {
   });
 
   const { data: { user } } = await supabase.auth.getUser();
-  const pathname = request.nextUrl.pathname;
   const requiredGroup = requiredRouteGroup(pathname);
 
   if (!user) {
@@ -97,5 +105,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"]
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"]
 };

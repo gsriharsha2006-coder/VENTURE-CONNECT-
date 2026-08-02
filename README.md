@@ -1,5 +1,7 @@
 # Venture Connect
 
+The frozen PACE one-month pilot release checklist is documented in [docs/PACE_PILOT_RELEASE.md](docs/PACE_PILOT_RELEASE.md).
+
 Venture Connect is a startup-readiness and opportunity-application platform for
 student founders and emerging entrepreneurs. It carries one structured startup
 document through human validation, improvement, opportunity applications,

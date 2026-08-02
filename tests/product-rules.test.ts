@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
-import crypto from "node:crypto";
 import test from "node:test";
 
-import { dashboardForRole, toDatabaseRole, toUserRole } from "../src/lib/auth/roles";
+import { dashboardForRole, toDatabaseRole } from "../src/lib/auth/roles";
+import { canInitiateInstitutionConversation } from "../src/lib/auth/identity";
 import { canSendMessage } from "../src/lib/messaging/permissions";
 import {
   applicationMethodUsesWorkspace,
   defaultApplicationMethodForType,
   validateExternalRegistrationUrl
 } from "../src/lib/opportunities/application-methods";
-import { verifyPaymentSignature, verifyWebhookSignature } from "../src/lib/razorpay/client";
-import { canGenerateReport, computeEntitlements } from "../src/lib/subscription/plans";
+import { isPilotApiDisabled, isPilotPageDisabled, isPilotOpportunityType } from "../src/lib/pilot/config";
 import type { Profile } from "../src/lib/types";
 
 function profile(overrides: Partial<Profile> = {}): Profile {
@@ -26,82 +25,52 @@ function profile(overrides: Partial<Profile> = {}): Profile {
   };
 }
 
-test("role mapping sends each supported role to its protected dashboard", () => {
+test("pilot roles map to the founder, organisation, and admin workspaces", () => {
   assert.equal(toDatabaseRole("Hackathon Organizer"), "hackathon_organizer");
-  assert.equal(toUserRole("validator"), "Validator");
   assert.equal(dashboardForRole("Founder"), "/dashboard");
-  assert.equal(dashboardForRole("Validator"), "/validator/dashboard");
+  assert.equal(dashboardForRole("Incubator"), "/organisation");
+  assert.equal(dashboardForRole("Hackathon Organizer"), "/organisation");
   assert.equal(dashboardForRole("Admin"), "/admin");
-  assert.equal(dashboardForRole("Incubator"), "/investor/discover");
+  assert.equal(dashboardForRole("Investor"), "/pilot-access-unavailable");
+  assert.equal(dashboardForRole("Validator"), "/pilot-access-unavailable");
 });
 
-test("plan limits remain finite and report access follows entitlement", () => {
-  const free = profile();
-  const pro = profile({ plan: "Student Pro", reports_used_this_month: 2 });
-
-  assert.equal(computeEntitlements(free).workspacesLimit, 1);
-  assert.equal(computeEntitlements(pro).workspacesLimit, 10);
-  assert.equal(computeEntitlements(pro).reportsRemaining, 1);
-  assert.equal(canGenerateReport(free, "Premium SWOT Analysis").allowed, false);
-  assert.equal(canGenerateReport(pro, "Premium SWOT Analysis").allowed, true);
+test("only incubation programmes and hackathons are discoverable in the pilot", () => {
+  assert.equal(isPilotOpportunityType("Incubator program"), true);
+  assert.equal(isPilotOpportunityType("Hackathon"), true);
+  assert.equal(isPilotOpportunityType("Investor Opportunity"), false);
+  assert.equal(isPilotOpportunityType("Event"), false);
 });
 
-test("hackathons default to organiser-managed registration and reject private destinations", () => {
-  assert.equal(defaultApplicationMethodForType("Hackathon"), "external_registration");
-  assert.equal(applicationMethodUsesWorkspace("external_registration"), false);
-  assert.equal(validateExternalRegistrationUrl("http://localhost/register").valid, false);
-
-  const result = validateExternalRegistrationUrl("https://example.org/apply#form");
-  assert.deepEqual(result, {
-    valid: true,
-    url: "https://example.org/apply",
-    domain: "example.org"
+test("legacy marketplaces, advertising, payments, and investor routes are disabled", () => {
+  ["/investor", "/pricing", "/services", "/validators", "/dashboard/validation-hub"].forEach((path) => {
+    assert.equal(isPilotPageDisabled(path), true);
+  });
+  ["/api/ads", "/api/subscriptions/checkout", "/api/webhooks/razorpay", "/api/validations"].forEach((path) => {
+    assert.equal(isPilotApiDisabled(path), true);
   });
 });
 
-test("only the matching investor or founder participant can send in an interest-created conversation", () => {
-  const conversation = { founder_id: "founder-1", investor_id: "investor-1" };
+test("hackathons use organiser registration while incubation uses Idea Workspace", () => {
+  assert.equal(defaultApplicationMethodForType("Hackathon"), "external_registration");
+  assert.equal(defaultApplicationMethodForType("Incubator program"), "idea_workspace_application");
+  assert.equal(applicationMethodUsesWorkspace("external_registration"), false);
+  assert.equal(applicationMethodUsesWorkspace("idea_workspace_application"), true);
+  assert.equal(validateExternalRegistrationUrl("http://localhost/register").valid, false);
+
+  const result = validateExternalRegistrationUrl("https://example.org/apply#form");
+  assert.deepEqual(result, { valid: true, url: "https://example.org/apply", domain: "example.org" });
+});
+
+test("incubator messaging opens only after an authorised Interested or Information Request action", () => {
+  assert.equal(canInitiateInstitutionConversation("incubator", "interested", true), true);
+  assert.equal(canInitiateInstitutionConversation("incubator", "request_information", true), true);
+  assert.equal(canInitiateInstitutionConversation("incubator", "under_review", true), false);
+  assert.equal(canInitiateInstitutionConversation("hackathon_organizer", "interested", true), false);
+  assert.equal(canInitiateInstitutionConversation("incubator", "interested", false), false);
+
+  const conversation = { founder_id: "founder-1", organisation_id: "incubator-1" };
   assert.equal(canSendMessage(profile({ id: "founder-1" }), conversation, "founder-1"), true);
-  assert.equal(
-    canSendMessage(profile({ id: "investor-1", role: "Investor" }), conversation, "investor-1"),
-    true
-  );
+  assert.equal(canSendMessage(profile({ id: "incubator-1", role: "Incubator" }), conversation, "incubator-1"), true);
   assert.equal(canSendMessage(profile({ id: "other-founder" }), conversation, "other-founder"), false);
 });
-
-test("Razorpay payment and webhook signatures are verified server-side", () => {
-  const previousSecret = process.env.RAZORPAY_KEY_SECRET;
-  const previousKeyId = process.env.RAZORPAY_KEY_ID;
-  const previousWebhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
-  const paymentSecret = "test-payment-secret";
-  const webhookSecret = "test-webhook-secret";
-  process.env.RAZORPAY_KEY_SECRET = paymentSecret;
-  process.env.RAZORPAY_KEY_ID = "test-key";
-  process.env.RAZORPAY_WEBHOOK_SECRET = webhookSecret;
-
-  try {
-    const paymentSignature = crypto
-      .createHmac("sha256", paymentSecret)
-      .update("order-1|payment-1")
-      .digest("hex");
-    const body = JSON.stringify({ event: "payment.captured" });
-    const webhookSignature = crypto
-      .createHmac("sha256", webhookSecret)
-      .update(body)
-      .digest("hex");
-
-    assert.equal(verifyPaymentSignature("order-1", "payment-1", paymentSignature), true);
-    assert.equal(verifyPaymentSignature("order-1", "payment-1", "invalid"), false);
-    assert.equal(verifyWebhookSignature(body, webhookSignature), true);
-    assert.equal(verifyWebhookSignature(`${body}x`, webhookSignature), false);
-  } finally {
-    restoreEnvironment("RAZORPAY_KEY_SECRET", previousSecret);
-    restoreEnvironment("RAZORPAY_KEY_ID", previousKeyId);
-    restoreEnvironment("RAZORPAY_WEBHOOK_SECRET", previousWebhookSecret);
-  }
-});
-
-function restoreEnvironment(name: string, value: string | undefined) {
-  if (value === undefined) delete process.env[name];
-  else process.env[name] = value;
-}

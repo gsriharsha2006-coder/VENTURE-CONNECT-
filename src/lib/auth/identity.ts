@@ -73,8 +73,8 @@ export function canInitiateInstitutionConversation(
 ) {
   const normalisedRole = role.trim().toLowerCase().replace(/[\s-]+/g, "_");
   return (
-    ["investor", "incubator", "hackathon_organizer", "event_organizer", "admin"].includes(normalisedRole) &&
-    applicationStatus.trim().toLowerCase() === "interested" &&
+    ["incubator", "admin"].includes(normalisedRole) &&
+    ["interested", "request_information"].includes(applicationStatus.trim().toLowerCase()) &&
     authorisedForApplication
   );
 }

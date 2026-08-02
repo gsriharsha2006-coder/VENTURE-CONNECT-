@@ -8,16 +8,22 @@ const fieldTypes = new Set(["short_text", "long_text", "email", "phone", "number
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    await requireRole(["hackathon_organizer", "event_organizer", "admin"]);
+    await requireRole(["hackathon_organizer"]);
     const service = createServiceClient() as SupabaseClient | null;
     if (!service) throw new AuthorizationError(503, "Form management requires server configuration.");
-    const { data: form } = await service.from("opportunity_forms").select("id, organisation_id").eq("id", id).maybeSingle();
+    const { data: form } = await service.from("opportunity_forms").select("id, organisation_id, opportunity_id, status").eq("id", id).maybeSingle();
     if (!form) throw new AuthorizationError(404, "Registration form not found.");
     await requireOrganisationMembership(form.organisation_id, ["owner", "admin"]);
     const body = await request.json() as { status?: "draft" | "published" | "closed"; fields?: Array<{ fieldKey: string; label: string; fieldType: string; helpText?: string; required?: boolean; configuration?: Record<string, unknown> }> };
     if (!body.status || !["draft", "published", "closed"].includes(body.status)) return NextResponse.json({ error: "Invalid form status." }, { status: 400 });
     const fields = body.fields ?? [];
     if (!fields.length || fields.some((field) => !field.label.trim() || !/^[a-z][a-z0-9_]{1,63}$/.test(field.fieldKey) || !fieldTypes.has(field.fieldType))) return NextResponse.json({ error: "Every field needs a valid label, key, and supported type." }, { status: 400 });
+    if (form.status === "published") {
+      if (body.status !== "closed") return NextResponse.json({ error: "Published registration forms are immutable. Close registration to stop new submissions." }, { status: 409 });
+      const { error: closeError } = await service.from("opportunity_forms").update({ status: "closed", is_active: false, updated_at: new Date().toISOString() }).eq("id", id).eq("organisation_id", form.organisation_id);
+      if (closeError) throw new Error("Registration could not be closed.");
+      return NextResponse.json({ saved: true, status: "closed" });
+    }
     let { data: section } = await service.from("opportunity_form_sections").select("id").eq("form_id", id).order("sort_order").limit(1).maybeSingle();
     if (!section) {
       const created = await service.from("opportunity_form_sections").insert({ form_id: id, title: "Registration details", sort_order: 0 }).select("id").single();

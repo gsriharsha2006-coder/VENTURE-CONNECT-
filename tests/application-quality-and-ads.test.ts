@@ -91,32 +91,26 @@ test("application checks persist server-side and submission requires the guarded
   assert.doesNotMatch(migration, /using\s*\(true\)/i);
 });
 
-test("founder primary navigation contains exactly the five product sections", () => {
+test("founder primary navigation contains exactly the four pilot features", () => {
   const shell = source("src/components/layout/AppShell.tsx");
   const founderBlock = shell.match(/const founderNav:[\s\S]*?\n\];/)?.[0] ?? "";
   const labels = [...founderBlock.matchAll(/label:\s*"([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(labels, ["Dashboard", "Idea Workspace", "Opportunities", "VC Readiness Report", "Messages"]);
+  assert.deepEqual(labels, ["Idea Workspace", "Opportunities", "VC Readiness Report", "Messages"]);
 });
 
-test("sponsored cards are imported only by allowed founder surfaces and internal admin tooling", () => {
-  const allowed = [
+test("advertising is absent from pilot founder surfaces and blocked at middleware", () => {
+  const founderSurfaces = [
     "src/app/(platform)/dashboard/page.tsx",
     "src/app/(platform)/opportunities/page.tsx",
     "src/app/(platform)/opportunities/[id]/page.tsx",
-    "src/app/(platform)/admin/sponsorship/page.tsx"
+    "src/app/(platform)/idea-workspace/page.tsx",
+    "src/components/product/VcReadinessReportClient.tsx"
   ];
-  allowed.forEach((path) => assert.match(source(path), /SponsoredCard|SponsorshipAdmin/));
-  [
-    "src/app/(platform)/dashboard/idea-workspace/page.tsx",
-    "src/app/(platform)/dashboard/vc-readiness/page.tsx",
-    "src/app/(platform)/dashboard/messages/page.tsx",
-    "src/app/(platform)/investor/applications/page.tsx",
-    "src/app/auth/page.tsx",
-    "src/app/auth/register/page.tsx"
-  ].forEach((path) => assert.doesNotMatch(source(path), /SponsoredCard|getSponsoredCreatives/));
+  founderSurfaces.forEach((path) => assert.doesNotMatch(source(path), /SponsoredCard|getSponsoredCreatives/));
+  assert.match(source("src/lib/pilot/config.ts"), /"\/api\/ads"/);
 });
 
-test("event and investor application routes remain separate", () => {
+test("hackathon registrations remain separate from incubation quality checks", () => {
   const panel = source("src/components/opportunities/OpportunityApplicationPanel.tsx");
   const internalRoute = source("src/app/api/opportunities/[id]/register/route.ts");
   const qualityRoute = source("src/app/api/applications/[id]/quality-check/route.ts");

@@ -360,6 +360,7 @@ export type ExternalRegistration = {
 
 export type NotificationType =
   | "Investor Interested"
+  | "Incubator Interested"
   | "Information Requested"
   | "New Message"
   | "Meeting Scheduled"

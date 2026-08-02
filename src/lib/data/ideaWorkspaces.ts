@@ -1,8 +1,9 @@
-import { ideaWorkspaces as mockIdeaWorkspaces } from "@/lib/data";
+import { pilotDemoWorkspaces } from "@/lib/pilot/demo-data";
 import { backendUnavailableError, getBrowserSupabase, getCurrentUserId, supabaseDataError } from "@/lib/data/shared";
 import { isDemoDataEnabled } from "@/lib/demo-data";
 import { completionPercent, emptySectionsForTemplate, getTemplateDef } from "@/lib/templates";
 import type { IdeaStatus, IdeaWorkspaceItem, StartupStage, WorkspaceTemplate, WorkspaceVisibility } from "@/lib/types";
+import { recordPilotEvent } from "@/lib/pilot/events";
 
 function normalizeStatus(status?: string | null): IdeaStatus {
   if (status === "Complete" || status?.toLowerCase() === "complete") return "Complete";
@@ -11,10 +12,8 @@ function normalizeStatus(status?: string | null): IdeaStatus {
 }
 
 function normalizeTemplate(template?: string | null): WorkspaceTemplate {
-  const value = template as WorkspaceTemplate | undefined;
-  return value && ["startup", "ai-project", "hackathon", "saas", "marketing", "student-project", "custom"].includes(value)
-    ? value
-    : "startup";
+  void template;
+  return "startup";
 }
 
 function normalizeStage(stage?: string | null): StartupStage {
@@ -43,11 +42,28 @@ function workspaceFromRow(row: {
 }): IdeaWorkspaceItem {
   const template = normalizeTemplate(row.template_type);
   const def = getTemplateDef(template);
+  const stored = (row.sections_json && typeof row.sections_json === "object" && !Array.isArray(row.sections_json)
+    ? row.sections_json
+    : {}) as Record<string, string>;
+  const legacyStartupSections: Record<string, string> = {
+    basic_information: stored.basic_information || stored.startup_name || "",
+    problem: stored.problem || stored.problem_statement || "",
+    solution: stored.solution || "",
+    target_customer: stored.target_customer || stored.target_market || "",
+    existing_alternatives: stored.existing_alternatives || stored.competitive_advantage || "",
+    product_description: stored.product_description || stored.product_overview || "",
+    business_model: stored.business_model || "",
+    customer_validation: stored.customer_validation || "",
+    progress_traction: stored.progress_traction || stored.traction || "",
+    team: stored.team || "",
+    funding_requirement: stored.funding_requirement || stored.funding_ask || "",
+    use_of_funds: stored.use_of_funds || stored.funding_ask || "",
+    risks_assumptions: stored.risks_assumptions || stored.risks || ""
+  };
   const sections = {
     ...emptySectionsForTemplate(template),
-    ...((row.sections_json && typeof row.sections_json === "object" && !Array.isArray(row.sections_json)
-      ? row.sections_json
-      : {}) as Record<string, string>)
+    ...stored,
+    ...legacyStartupSections
   };
   const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "Supabase";
 
@@ -107,7 +123,7 @@ function workspaceToInsert(workspace: IdeaWorkspaceItem, founderId: string) {
 export async function getIdeaWorkspaces(): Promise<IdeaWorkspaceItem[]> {
   const supabase = getBrowserSupabase();
   const userId = await getCurrentUserId("list Idea Workspace documents");
-  if (!supabase || !userId) return isDemoDataEnabled() ? mockIdeaWorkspaces : [];
+  if (!supabase || !userId) return isDemoDataEnabled() ? pilotDemoWorkspaces : [];
 
   const { data, error } = await supabase
     .from("idea_workspaces")
@@ -134,6 +150,7 @@ export async function createIdeaWorkspace(workspace: IdeaWorkspaceItem): Promise
     .single();
 
   if (error || !data) throw supabaseDataError("create Idea Workspace document", error ?? "No row returned.");
+  void recordPilotEvent("idea_created", { workspaceId: data.id });
   return workspaceFromRow(data);
 }
 
@@ -154,6 +171,7 @@ export async function updateIdeaWorkspace(workspace: IdeaWorkspaceItem): Promise
     .single();
 
   if (error || !data) throw supabaseDataError("update Idea Workspace document", error ?? "No row returned.");
+  if (completionPercent(workspace.sections, "startup") === 100) void recordPilotEvent("idea_completed", { workspaceId: workspace.id });
   return workspaceFromRow(data);
 }
 
@@ -170,6 +188,21 @@ export async function archiveIdeaWorkspace(workspaceId: string) {
     .eq("id", workspaceId)
     .eq("founder_id", userId);
   if (error) throw supabaseDataError("archive Idea Workspace document", error);
+}
+
+export async function restoreIdeaWorkspace(workspaceId: string) {
+  const supabase = getBrowserSupabase();
+  const userId = await getCurrentUserId("restore Idea Workspace document");
+  if (!supabase || !userId) {
+    if (isDemoDataEnabled()) return;
+    throw backendUnavailableError("Idea Workspace restoration");
+  }
+  const { error } = await supabase
+    .from("idea_workspaces")
+    .update({ archived: false, updated_at: new Date().toISOString() })
+    .eq("id", workspaceId)
+    .eq("founder_id", userId);
+  if (error) throw supabaseDataError("restore Idea Workspace document", error);
 }
 
 export async function deleteIdeaWorkspace(workspaceId: string) {

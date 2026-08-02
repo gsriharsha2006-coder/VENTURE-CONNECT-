@@ -49,7 +49,7 @@ export type QualityCheckStatus =
   | "needs_revision"
   | "incomplete"
   | "eligibility_mismatch"
-  | "manual_review_required";
+  | "manual_review";
 
 export type ApplicationQualityResult = {
   qualityScore: number;

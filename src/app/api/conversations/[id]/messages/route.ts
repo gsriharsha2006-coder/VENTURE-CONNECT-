@@ -43,7 +43,7 @@ export async function POST(
       return NextResponse.json({ error: "Conversation is not active." }, { status: 409 });
     }
 
-    const body = await request.json() as { message?: string; messageType?: "text" | "meeting_link" };
+    const body = await request.json() as { message?: string };
     const message = body.message?.trim() ?? "";
     if (!message || message.length > 8_000) {
       return NextResponse.json({ error: "Message must contain between 1 and 8000 characters." }, { status: 400 });
@@ -58,7 +58,7 @@ export async function POST(
         application_id: conversation.application_id,
         sender_id: authUserId,
         sender_profile_id: profile.id,
-        message_type: body.messageType ?? "text",
+        message_type: "text",
         message,
         body: message
       })

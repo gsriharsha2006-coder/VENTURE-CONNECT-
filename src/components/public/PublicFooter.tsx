@@ -8,11 +8,12 @@ export function PublicFooter() {
         <VentureLogo />
         <nav aria-label="Footer navigation" className="flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium text-slate-600">
           <Link href="/#workflow" className="hover:text-primary">Workflow</Link>
-          <Link href="/validators" className="hover:text-primary">Validator directory</Link>
-          <Link href="/pricing" className="hover:text-primary">Pricing</Link>
+          <Link href="/#founder-features" className="hover:text-primary">Founder features</Link>
+          <Link href="/#opportunities" className="hover:text-primary">Opportunities</Link>
+          <Link href="/#organisations" className="hover:text-primary">Organisations</Link>
           <Link href="/faq" className="hover:text-primary">FAQ</Link>
         </nav>
-        <p className="text-xs text-slate-500">Structured startup preparation for founders and programme teams.</p>
+        <p className="text-xs text-slate-500">Structured startup preparation for the PACE one-month pilot.</p>
       </div>
     </footer>
   );
