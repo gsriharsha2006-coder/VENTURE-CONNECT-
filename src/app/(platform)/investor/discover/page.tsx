@@ -4,8 +4,13 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/FeedbackState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { OrganisationOnboarding } from "@/components/organisations/OrganisationOnboarding";
+import { requireRole } from "@/lib/auth/server";
 
-export default function InstitutionDashboardPage() {
+export default async function InstitutionDashboardPage() {
+  const { profile, role, supabase } = await requireRole(["investor", "incubator", "hackathon_organizer", "event_organizer"]);
+  const { data: memberships } = await supabase.from("organisation_members").select("organisation_id, organisation:organisations(name, verification_status)").eq("profile_id", profile.id).eq("status", "active").limit(1);
+  if (!memberships?.length) return <OrganisationOnboarding role={role} />;
   return (
     <div className="space-y-6">
       <PageHeader

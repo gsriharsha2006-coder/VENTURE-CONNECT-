@@ -1,6 +1,7 @@
 import type { ApplicationMethod, Opportunity, OpportunityType } from "@/lib/types";
 
 export const APPLICATION_METHOD_LABELS: Record<ApplicationMethod, string> = {
+  internal_registration: "Venture Connect Registration",
   external_registration: "External Registration",
   idea_workspace_application: "Apply with Idea Workspace",
   hybrid_application: "Hybrid Application",
@@ -93,6 +94,10 @@ export function applicationMethodNeedsExternalUrl(method: ApplicationMethod) {
 
 export function applicationMethodUsesWorkspace(method: ApplicationMethod) {
   return method === "idea_workspace_application";
+}
+
+export function applicationMethodUsesInternalForm(method: ApplicationMethod) {
+  return method === "internal_registration";
 }
 
 export function isExternallyManagedApplication(method: ApplicationMethod) {

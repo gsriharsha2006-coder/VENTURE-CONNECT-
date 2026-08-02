@@ -5,13 +5,31 @@ import { ApplicationMethodBadge } from "@/components/opportunities/ApplicationMe
 import { OpportunityApplicationPanel } from "@/components/opportunities/OpportunityApplicationPanel";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardHeader } from "@/components/ui/Card";
-import { opportunities } from "@/lib/data";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { requireRole } from "@/lib/auth/server";
+import { opportunityFromRow } from "@/lib/data/opportunities";
+import { SponsoredCard } from "@/components/ads/SponsoredCard";
+import type { SponsoredCreative } from "@/lib/ads/types";
 import { validateExternalRegistrationUrl } from "@/lib/opportunities/application-methods";
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const opportunity = opportunities.find((item) => item.id === id);
+  const { supabase } = await requireRole(["founder"]);
+  const db = supabase as unknown as SupabaseClient;
+  const { data: opportunityRow } = await db.from("opportunities").select("*").eq("id", id).maybeSingle();
+  const opportunity = opportunityRow ? opportunityFromRow(opportunityRow as Parameters<typeof opportunityFromRow>[0]) : null;
   if (!opportunity) notFound();
+  let promotion: SponsoredCreative | null = null;
+  if (opportunity.is_sponsored) {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: sponsored } = await db.from("sponsored_opportunities").select("campaign_id, campaign:ad_campaigns(id, status, start_date, end_date, placements, creatives:ad_creatives(id, sponsor_name, headline, description, cta_label, cta_url, logo_url, promoted_label, approved_status))").eq("opportunity_id", id).maybeSingle();
+    const campaign = Array.isArray(sponsored?.campaign) ? sponsored?.campaign[0] : sponsored?.campaign;
+    const creatives = Array.isArray(campaign?.creatives) ? campaign.creatives : [];
+    const creative = creatives.find((item) => item.approved_status === "approved");
+    if (campaign?.status === "active" && campaign.start_date <= today && campaign.end_date >= today && creative) {
+      promotion = { id: creative.id, campaignId: campaign.id, sponsorName: creative.sponsor_name ?? opportunity.organizer_name, sponsorLogoUrl: creative.logo_url ?? undefined, headline: creative.headline, description: creative.description, ctaLabel: creative.cta_label, ctaUrl: creative.cta_url, promotedLabel: creative.promoted_label, placements: campaign.placements } as SponsoredCreative;
+    }
+  }
   const isHackathon = opportunity.opportunity_type === "Hackathon";
   const officialWebsite = validateExternalRegistrationUrl(opportunity.official_website);
   const officialRules = validateExternalRegistrationUrl(opportunity.official_rules_url);
@@ -102,6 +120,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         </div>
 
         <aside className="space-y-4">
+          {promotion ? <SponsoredCard creative={promotion} placement="sponsored_opportunity" /> : null}
           <OpportunityApplicationPanel opportunity={opportunity} />
           <Card>
             <CardHeader eyebrow="Deadline" title={opportunity.deadline} />

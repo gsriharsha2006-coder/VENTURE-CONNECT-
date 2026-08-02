@@ -1,22 +1,22 @@
 import {
   Building2,
-  Rocket,
-  ShieldCheck
+  Rocket
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { UserRole } from "@/lib/types";
 
+export type PrimaryAccountType = "Founder" | "Organisation";
+
 export type RoleOption = {
-  role: UserRole;
+  role: PrimaryAccountType;
   title: string;
   description: string;
   icon: LucideIcon;
 };
 
 export const roleOptions: RoleOption[] = [
-  { role: "Founder", title: "Founder", description: "Structure an idea, prepare documents, and track applications.", icon: Rocket },
-  { role: "Validator", title: "Validator", description: "Review assigned founder documents after identity approval.", icon: ShieldCheck },
-  { role: "Incubator", title: "Institution", description: "Publish programmes or review applications for an organisation.", icon: Building2 }
+  { role: "Founder", title: "Founder / Student", description: "Structure an idea, prepare applications, and track organisation interest.", icon: Rocket },
+  { role: "Organisation", title: "Organisation", description: "Publish opportunities and review applications submitted to your organisation.", icon: Building2 }
 ];
 
 export function companyLabel(role: UserRole) {

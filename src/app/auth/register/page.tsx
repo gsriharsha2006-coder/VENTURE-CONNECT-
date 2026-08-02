@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, Building2, LoaderCircle, Mail, UserRound } from "lucide-react";
 import { AuthFrame } from "@/components/auth/AuthFrame";
 import { PasswordField } from "@/components/auth/PasswordField";
-import { companyLabel, roleOptions } from "@/components/auth/roleOptions";
+import { companyLabel, roleOptions, type PrimaryAccountType } from "@/components/auth/roleOptions";
 import { Button } from "@/components/ui/Button";
 import { StatusMessage } from "@/components/ui/FeedbackState";
 import { authRedirectTo, isSupabaseConfigured, supabase } from "@/lib/supabase";
@@ -14,8 +14,6 @@ import type { UserRole } from "@/lib/types";
 
 type RegistrationStep = "role" | "details";
 type StatusTone = "info" | "success" | "error";
-type PrimaryRole = "Founder" | "Validator" | "Incubator";
-
 const institutionRoles: Array<{ value: UserRole; label: string }> = [
   { value: "Incubator", label: "Incubator or college programme" },
   { value: "Investor", label: "Investor or venture team" },
@@ -26,7 +24,7 @@ const institutionRoles: Array<{ value: UserRole; label: string }> = [
 export default function RegisterPage() {
   const supabaseReady = isSupabaseConfigured();
   const [step, setStep] = useState<RegistrationStep>("role");
-  const [primaryRole, setPrimaryRole] = useState<PrimaryRole>("Founder");
+  const [primaryRole, setPrimaryRole] = useState<PrimaryAccountType>("Founder");
   const [institutionRole, setInstitutionRole] = useState<UserRole>("Incubator");
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -40,7 +38,7 @@ export default function RegisterPage() {
   );
   const [statusTone, setStatusTone] = useState<StatusTone>("info");
 
-  const role: UserRole = primaryRole === "Incubator" ? institutionRole : primaryRole;
+  const role: UserRole = primaryRole === "Organisation" ? institutionRole : "Founder";
   const redirectTo = useMemo(
     () => `${authRedirectTo}/auth/callback?next=${encodeURIComponent(dashboardForRole(role))}`,
     [role]
@@ -121,7 +119,7 @@ export default function RegisterPage() {
 
       {step === "role" ? (
         <div>
-          <div role="radiogroup" aria-label="Account role" className="grid gap-3 md:grid-cols-3">
+          <div role="radiogroup" aria-label="Account role" className="grid gap-3 sm:grid-cols-2">
             {roleOptions.map((option) => {
               const Icon = option.icon;
               const selected = primaryRole === option.role;
@@ -131,7 +129,7 @@ export default function RegisterPage() {
                   type="button"
                   role="radio"
                   aria-checked={selected}
-                  onClick={() => setPrimaryRole(option.role as PrimaryRole)}
+                  onClick={() => setPrimaryRole(option.role)}
                   className={`min-h-40 rounded-lg border p-4 text-left transition-colors ${selected ? "border-blue-400 bg-blue-50 ring-4 ring-blue-100" : "border-slate-200 bg-white hover:border-blue-300"}`}
                 >
                   <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${selected ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}>
@@ -158,9 +156,9 @@ export default function RegisterPage() {
             Change role
           </button>
 
-          {primaryRole === "Incubator" ? (
+          {primaryRole === "Organisation" ? (
             <label htmlFor="institution-type" className="mb-5 block">
-              <span className="text-sm font-semibold text-slate-700">Institution account type</span>
+              <span className="text-sm font-semibold text-slate-700">Organisation type</span>
               <select id="institution-type" value={institutionRole} onChange={(event) => setInstitutionRole(event.target.value as UserRole)} className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm">
                 {institutionRoles.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>

@@ -1,9 +1,10 @@
-import { ExternalLink, FileText, Info, Split } from "lucide-react";
+import { ClipboardList, ExternalLink, FileText, Info, Split } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { APPLICATION_METHOD_LABELS } from "@/lib/opportunities/application-methods";
 import type { ApplicationMethod } from "@/lib/types";
 
 const icons = {
+  internal_registration: ClipboardList,
   external_registration: ExternalLink,
   idea_workspace_application: FileText,
   hybrid_application: Split,

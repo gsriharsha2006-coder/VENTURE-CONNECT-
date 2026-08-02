@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   Bell,
-  BriefcaseBusiness,
   CalendarDays,
   ClipboardCheck,
   Compass,
@@ -25,7 +24,6 @@ import {
   ShieldCheck,
   TriangleAlert,
   Store,
-  UserCheck,
   UserRound,
   UsersRound,
   Wallet,
@@ -44,21 +42,24 @@ const founderNav: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/dashboard/idea-workspace", label: "Idea Workspace", icon: Lightbulb },
   { href: "/dashboard/opportunities", label: "Opportunities", icon: Compass },
-  { href: "/dashboard/validation-hub", label: "Validation Hub", icon: ShieldCheck },
-  { href: "/applications", label: "Applications", icon: ClipboardCheck },
-  { href: "/dashboard/messages", label: "Messages", icon: MessagesSquare },
   { href: "/dashboard/vc-readiness", label: "VC Readiness Report", icon: FileChartColumn },
-  { href: "/blogs", label: "Founder Blog", icon: FileText }
+  { href: "/dashboard/messages", label: "Messages", icon: MessagesSquare }
 ];
 
 const investorNav: NavItem[] = [
-  { href: "/investor/discover", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/investor/post-opportunity", label: "Opportunities", icon: FilePlus2 },
-  { href: "/applications", label: "Applications", icon: ClipboardCheck },
-  { href: "/investor/interested", label: "Interested Founders", icon: UserCheck },
-  { href: "/investor/messages", label: "Messages", icon: MessagesSquare },
-  { href: "/investor/saved", label: "Portfolio", icon: BriefcaseBusiness },
-  { href: "/blogs", label: "Ecosystem Blog", icon: FileText }
+  { href: "/investor/discover", label: "Overview", icon: LayoutDashboard },
+  { href: "/investor/post-opportunity", label: "Post Opportunity", icon: FilePlus2 },
+  { href: "/investor/applications", label: "Application Queue", icon: ClipboardCheck },
+  { href: "/investor/insights", label: "Insights", icon: FileChartColumn },
+  { href: "/investor/messages", label: "Messages", icon: MessagesSquare }
+];
+
+const organiserNav: NavItem[] = [
+  { href: "/investor/discover", label: "Overview", icon: LayoutDashboard },
+  { href: "/investor/post-opportunity", label: "Create Opportunity", icon: FilePlus2 },
+  { href: "/investor/forms", label: "Form Builder", icon: FileText },
+  { href: "/investor/applications", label: "Applications", icon: ClipboardCheck },
+  { href: "/investor/insights", label: "Insights", icon: FileChartColumn }
 ];
 
 const providerNav: NavItem[] = [
@@ -84,6 +85,7 @@ const adminNav: NavItem[] = [
   { href: "/admin/users", label: "Users", icon: UsersRound },
   { href: "/admin/validators", label: "Validators", icon: ShieldCheck },
   { href: "/admin/opportunities", label: "Opportunities", icon: Compass },
+  { href: "/admin/sponsorship", label: "Sponsorship", icon: Store },
   { href: "/admin/bookings", label: "Bookings", icon: ClipboardCheck },
   { href: "/admin/reports", label: "Reports", icon: FileChartColumn },
   { href: "/admin/payments", label: "Payments", icon: CreditCard },
@@ -93,8 +95,11 @@ const adminNav: NavItem[] = [
 
 function navigationFor(role: string) {
   const databaseRole = toDatabaseRole(role);
-  if (["investor", "incubator", "hackathon_organizer", "event_organizer"].includes(databaseRole)) {
-    return { label: databaseRole === "investor" ? "Investor" : "Institution / organiser", items: investorNav, kind: "institution" as const };
+  if (["hackathon_organizer", "event_organizer"].includes(databaseRole)) {
+    return { label: "Organiser", items: organiserNav, kind: "institution" as const };
+  }
+  if (["investor", "incubator"].includes(databaseRole)) {
+    return { label: databaseRole === "investor" ? "Investor" : "Incubator", items: investorNav, kind: "institution" as const };
   }
   if (databaseRole === "service_provider") return { label: "Service provider", items: providerNav, kind: "provider" as const };
   if (databaseRole === "validator") return { label: "Validator", items: validatorNav, kind: "validator" as const };

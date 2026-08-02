@@ -12,7 +12,7 @@ type ConversationParticipant = {
   } | null;
 };
 
-export async function createConversationFromInterest(applicationId: string, actorProfileId: string) {
+export async function createConversationForOrganisationAction(applicationId: string, actorProfileId: string, reason: "interested" | "request_information") {
   const supabase = createServiceClient();
   if (!supabase) {
     throw new Error("Conversation creation is unavailable because server data services are not configured.");
@@ -33,6 +33,9 @@ export async function createConversationFromInterest(applicationId: string, acto
 
   if (applicationError || !application) throw new Error("Application not found.");
   if (actorError || !actor) throw new Error("Initiating profile not found.");
+  if (["draft", "started"].includes(String(application.status).toLowerCase())) {
+    throw new Error("Draft applications cannot open organisation conversations.");
+  }
 
   let founderProfileId = application.founder_profile_id as string | null;
   if (!founderProfileId && application.founder_id) {
@@ -47,11 +50,16 @@ export async function createConversationFromInterest(applicationId: string, acto
 
   const { data: opportunity, error: opportunityError } = await supabase
     .from("opportunities")
-    .select("id, created_by, created_by_profile_id, organisation_id")
+    .select("id, created_by, created_by_profile_id, organisation_id, application_method")
     .eq("id", application.opportunity_id)
     .single();
 
   if (opportunityError || !opportunity) throw new Error("Application opportunity not found.");
+
+  if (opportunity.application_method === "idea_workspace_application") {
+    const { data: snapshot } = await supabase.from("application_snapshots").select("id").eq("application_id", applicationId).maybeSingle();
+    if (!snapshot) throw new Error("A fixed submitted application snapshot is required before conversation access.");
+  }
 
   let authorisedForApplication = opportunity.created_by_profile_id === actorProfileId;
   if (!authorisedForApplication && opportunity.created_by === actor.user_id) {
@@ -74,15 +82,26 @@ export async function createConversationFromInterest(applicationId: string, acto
     throw new Error("Only an authorised investor or institution can mark this application Interested.");
   }
 
-  await supabase
+  const applicationStatus = reason === "interested" ? "interested" : "needs_changes";
+  const { error: statusError } = await supabase
     .from("applications")
     .update({
-      status: "interested",
+      status: applicationStatus,
       decision_by_profile_id: actorProfileId,
       reviewed_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
     .eq("id", applicationId);
+  if (statusError) throw statusError;
+
+  if (reason === "interested" && organisationId) {
+    const { error: interestedError } = await supabase.from("interested_applications").upsert({
+      application_id: applicationId,
+      organisation_id: organisationId,
+      marked_by_profile_id: actorProfileId
+    }, { onConflict: "application_id" });
+    if (interestedError) throw interestedError;
+  }
 
   const { data: existing } = await supabase
     .from("conversations")
@@ -100,7 +119,7 @@ export async function createConversationFromInterest(applicationId: string, acto
       organisation_id: organisationId,
       initiated_by_profile_id: actorProfileId,
       context_type: "application",
-      authorization_reason: "interested",
+      authorization_reason: reason,
       status: "active"
     })
     .select()
@@ -131,20 +150,24 @@ export async function createConversationFromInterest(applicationId: string, acto
     sender_id: actor.user_id,
     sender_profile_id: actorProfileId,
     message_type: "system",
-    message: "The application was marked Interested. Conversation opened.",
-    body: "The application was marked Interested. Conversation opened."
+    message: reason === "interested" ? "The application was marked Interested. Conversation opened." : "The organisation requested more information. Conversation opened.",
+    body: reason === "interested" ? "The application was marked Interested. Conversation opened." : "The organisation requested more information. Conversation opened."
   });
 
   await createNotification({
     profileId: founderProfileId,
-    type: "Investor Interested",
-    title: "An investor is interested in your startup",
-    body: "An investor reviewed your submission and wants to connect. Messaging is now available.",
+    type: reason === "interested" ? "Investor Interested" : "Information Requested",
+    title: reason === "interested" ? "An organisation is interested in your startup" : "An organisation requested more information",
+    body: reason === "interested" ? "An organisation reviewed your submission and wants to connect. Messaging is now available." : "Open the new conversation to review the organisation's request and reply.",
     metadata: { conversationId: conversation.id, applicationId },
     sendEmail: true
   });
 
   return conversation;
+}
+
+export function createConversationFromInterest(applicationId: string, actorProfileId: string) {
+  return createConversationForOrganisationAction(applicationId, actorProfileId, "interested");
 }
 
 export async function assertConversationParticipant(conversationId: string, profileId: string) {

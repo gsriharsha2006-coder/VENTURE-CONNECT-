@@ -9,7 +9,6 @@ import {
   ExternalLink,
   Flag,
   Share2,
-  Wrench
 } from "lucide-react";
 import { ExternalRegistrationDialog } from "@/components/opportunities/ExternalRegistrationDialog";
 import { ApplicationMethodBadge } from "@/components/opportunities/ApplicationMethodBadge";
@@ -152,12 +151,16 @@ export function OpportunityApplicationPanel({ opportunity }: { opportunity: Oppo
             >
               {trackingOpen ? "Hide tracking details" : "Mark as Applied"}
             </button>
-            {method === "hybrid_application" ? (
-              <Link href="/dashboard/idea-workspace?template=hackathon" className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-3 text-sm font-semibold text-blue-800">
-                <Wrench size={16} />
-                Prepare Your Hackathon Project
-              </Link>
-            ) : null}
+          </>
+        ) : method === "internal_registration" ? (
+          <>
+            <h2 className="mt-4 text-xl font-semibold text-slate-950">Register with the organiser form</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Complete the organiser-created registration form inside Venture Connect. This event flow does not use Idea Workspace or Application Quality Check.
+            </p>
+            <Link href={`/dashboard/opportunities/${opportunity.id}/register`}>
+              <Button className="mt-5 w-full">Start registration</Button>
+            </Link>
           </>
         ) : method === "idea_workspace_application" ? (
           <>
@@ -165,8 +168,8 @@ export function OpportunityApplicationPanel({ opportunity }: { opportunity: Oppo
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Select an eligible Idea Workspace document. The organiser will receive the structured application inside Venture Connect.
             </p>
-            <Link href={`/dashboard/opportunities?apply=${opportunity.id}`}>
-              <Button className="mt-5 w-full">Apply using Idea Workspace</Button>
+            <Link href={`/dashboard/opportunities/${opportunity.id}/apply`}>
+              <Button className="mt-5 w-full">Apply with Idea</Button>
             </Link>
           </>
         ) : (

@@ -31,7 +31,7 @@ function normalizeType(value?: string | null): OpportunityType {
   return allowed.includes(value as OpportunityType) ? value as OpportunityType : fallback;
 }
 
-function opportunityFromRow(row: {
+export function opportunityFromRow(row: {
   id: string;
   created_by: string | null;
   creator_role: string | null;
@@ -64,6 +64,7 @@ function opportunityFromRow(row: {
   source_verification: string | null;
   application_instructions: string | null;
   direct_application_partner: boolean | null;
+  is_sponsored?: boolean | null;
 }): Opportunity {
   const type = normalizeType(row.opportunity_type);
   const applicationMethod = (row.application_method as ApplicationMethod | null) ?? defaultApplicationMethodForType(type);
@@ -84,8 +85,10 @@ function opportunityFromRow(row: {
     guidelines: row.guidelines ?? "Submit a structured application and supporting context.",
     benefits: "Partner review and next-step guidance.",
     requirements: applicationMethod === "idea_workspace_application"
-      ? ["Complete Idea Workspace document"]
-      : ["Complete registration on the organiser website"],
+      ? ["Complete opportunity-specific application copy", "Pass Application Quality Check"]
+      : applicationMethod === "internal_registration"
+        ? ["Complete the organiser-created registration form"]
+        : ["Complete registration on the organiser website"],
     tags: row.tags ?? [],
     location: row.location ?? "Remote",
     mode: (row.mode as OpportunityMode) ?? "Remote",
@@ -118,7 +121,8 @@ function opportunityFromRow(row: {
     applicants: 0,
     bookmarked: false,
     description: row.guidelines ?? undefined,
-    premium: false
+    premium: false,
+    is_sponsored: row.is_sponsored ?? false
   };
 }
 

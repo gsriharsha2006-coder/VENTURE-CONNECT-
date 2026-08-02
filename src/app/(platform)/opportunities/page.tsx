@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Bookmark,
   CalendarClock,
@@ -10,7 +10,6 @@ import {
   Filter,
   MapPin,
   Search,
-  Send,
   Share2,
   ShieldCheck,
   TrendingUp
@@ -22,8 +21,8 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { StatusMessage } from "@/components/ui/FeedbackState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { SponsoredCard } from "@/components/ads/SponsoredCard";
 import { useDemoPlan } from "@/hooks/useDemoPlan";
-import { applyToOpportunity } from "@/lib/data/applications";
 import { externalRegistrations, ideaWorkspaces as seedWorkspaces, opportunities as seedOpportunities } from "@/lib/data";
 import { getIdeaWorkspaces } from "@/lib/data/ideaWorkspaces";
 import {
@@ -33,14 +32,15 @@ import {
 } from "@/lib/data/opportunity-tracking";
 import { getBadgesForWorkspace } from "@/lib/data/validations";
 import { getOpportunities } from "@/lib/data/opportunities";
+import { getSponsoredCreatives } from "@/lib/data/ads";
 import { isDemoDataEnabled } from "@/lib/demo-data";
-import { PLAN_LIMITS } from "@/lib/subscription/plans";
-import { completionPercent, missingRequiredSections } from "@/lib/templates";
+import { completionPercent } from "@/lib/templates";
 import {
-  applicationMethodUsesWorkspace,
+  applicationMethodUsesInternalForm,
   getOpportunityApplicationMethod,
   isExternallyManagedApplication
 } from "@/lib/opportunities/application-methods";
+import type { SponsoredCreative } from "@/lib/ads/types";
 import type { DomainTag, IdeaWorkspaceItem, OpportunityMode, OpportunityType, StartupStage } from "@/lib/types";
 
 const opportunityTypes: Array<"All" | OpportunityType> = [
@@ -84,7 +84,6 @@ export default function OpportunitiesPage() {
   const [eligibilityQuery, setEligibilityQuery] = useState("");
   const [deadlineQuery, setDeadlineQuery] = useState("");
   const [workspaceId, setWorkspaceId] = useState((demoEnabled ? seedWorkspaces[0]?.id : "") ?? "");
-  const [applied, setApplied] = useState<string[]>([]);
   const [externalStatuses, setExternalStatuses] = useState<Record<string, string>>(() =>
     Object.fromEntries(getExternalRegistrations(demoEnabled ? externalRegistrations : []).map((item) => [item.opportunity_id, item.status]))
   );
@@ -92,6 +91,8 @@ export default function OpportunitiesPage() {
   const [warning, setWarning] = useState("");
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [feedPromotion, setFeedPromotion] = useState<SponsoredCreative | null>(null);
+  const [sidebarPromotion, setSidebarPromotion] = useState<SponsoredCreative | null>(null);
   const [plan, setPlan] = useDemoPlan();
   const categories = useMemo(() => ["All", ...Array.from(new Set(opportunities.map((item) => item.category)))], [opportunities]);
 
@@ -110,6 +111,16 @@ export default function OpportunitiesPage() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all([getSponsoredCreatives("opportunity_feed"), getSponsoredCreatives("opportunity_sidebar")]).then(([feed, sidebar]) => {
+      if (!active) return;
+      setFeedPromotion(feed[0] ?? null);
+      setSidebarPromotion(sidebar[0] ?? null);
+    }).catch(() => undefined);
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -184,44 +195,6 @@ export default function OpportunitiesPage() {
       )
     );
     void recordOpportunityEvent({ opportunityId: id, eventType: "opportunity_saved", referralSource: "opportunity_marketplace" });
-  }
-
-  async function apply(opportunityId: string) {
-    const opportunity = opportunities.find((item) => item.id === opportunityId);
-    if (!opportunity) return;
-    const applicationMethod = getOpportunityApplicationMethod(opportunity);
-    if (!applicationMethodUsesWorkspace(applicationMethod)) {
-      setWarning("This opportunity is managed by the organiser. Use the official registration action instead of submitting an Idea Workspace.");
-      return;
-    }
-    if (!selectedWorkspace) {
-      setWarning("Create and complete an Idea Workspace before starting an internal application.");
-      return;
-    }
-    const monthlyLimit = PLAN_LIMITS[plan].opportunitySubmissionsPerMonth;
-    if (!applied.includes(opportunityId) && applied.length >= monthlyLimit) {
-      setWarning(`${plan} allows ${monthlyLimit} opportunity submission${monthlyLimit === 1 ? "" : "s"} per month. Upgrade or wait for the monthly reset.`);
-      return;
-    }
-    if (selectedCompletion < 100) {
-      const missing = missingRequiredSections(selectedWorkspace.sections, selectedWorkspace.template)
-        .map((section) => section.label)
-        .join(", ");
-      setWarning(`Complete your Idea Workspace document before applying. Missing sections: ${missing}.`);
-      return;
-    }
-
-    try {
-      await applyToOpportunity({
-        opportunityId,
-        ideaWorkspaceId: selectedWorkspace.id,
-        applicationMethod
-      });
-      setApplied((current) => (current.includes(opportunityId) ? current : [opportunityId, ...current]));
-      setWarning(selectedBadges.length ? "Application submitted with a Human Reviewed summary." : "Application submitted with the selected Idea Workspace document.");
-    } catch (error) {
-      setWarning(error instanceof Error ? error.message : "Application submission could not be completed.");
-    }
   }
 
   async function continueExternalRegistration(opportunityId: string, destination: { url: string; domain: string }) {
@@ -337,7 +310,6 @@ export default function OpportunitiesPage() {
           <input aria-label="Deadline filter" value={deadlineQuery} onChange={(event) => setDeadlineQuery(event.target.value)} placeholder="Deadline (e.g. Jul)" className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none" />
           <input aria-label="Funding filter" value={fundingQuery} onChange={(event) => setFundingQuery(event.target.value)} placeholder="Funding, prize, or grant" className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none" />
           <input aria-label="Eligibility filter" value={eligibilityQuery} onChange={(event) => setEligibilityQuery(event.target.value)} placeholder="Eligibility" className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none" />
-          {demoEnabled ? <div className="flex items-center rounded-xl border border-blue-100 bg-blue-50 px-3 text-sm text-blue-900">{applied.length}/{PLAN_LIMITS[plan].opportunitySubmissionsPerMonth} demo submissions used</div> : null}
         </div>
       </Card>
 
@@ -356,13 +328,13 @@ export default function OpportunitiesPage() {
               <Button variant="secondary" className="mt-4" onClick={clearFilters}>Reset filters</Button>
             </Card>
           ) : null}
-          {filtered.map((opportunity) => {
-            const didApply = applied.includes(opportunity.id);
+          {filtered.map((opportunity, index) => {
             const applicationMethod = getOpportunityApplicationMethod(opportunity);
             const externallyManaged = isExternallyManagedApplication(applicationMethod);
             const externalStatus = externalStatuses[opportunity.id];
             return (
-              <Card key={opportunity.id} className="flex h-full flex-col">
+              <Fragment key={opportunity.id}>
+              <Card className="flex h-full flex-col">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -424,9 +396,15 @@ export default function OpportunitiesPage() {
                       </Button>
                     </Link>
                     {applicationMethod === "idea_workspace_application" ? (
-                      <Button size="sm" onClick={() => apply(opportunity.id)} variant={didApply ? "secondary" : "primary"}>
-                        {didApply ? "Applied" : "Apply with Idea Workspace"}
-                      </Button>
+                      <Link href={`/dashboard/opportunities/${opportunity.id}/apply`}>
+                        <Button size="sm">
+                          Apply with Idea
+                        </Button>
+                      </Link>
+                    ) : applicationMethodUsesInternalForm(applicationMethod) ? (
+                      <Link href={`/dashboard/opportunities/${opportunity.id}/register`}>
+                        <Button size="sm">Register</Button>
+                      </Link>
                     ) : externallyManaged ? (
                       <Button size="sm" onClick={() => setExternalConfirmId(opportunity.id)}>
                         Register
@@ -447,11 +425,14 @@ export default function OpportunitiesPage() {
                   </div>
                 ) : null}
               </Card>
+              {feedPromotion && index === 5 ? <SponsoredCard creative={feedPromotion} placement="opportunity_feed" className="md:col-span-2 xl:hidden" /> : null}
+              </Fragment>
             );
           })}
         </div>
 
         <aside className="space-y-4">
+          {sidebarPromotion ? <SponsoredCard creative={sidebarPromotion} placement="opportunity_sidebar" className="hidden xl:block" /> : null}
           <Card>
             <CardHeader eyebrow="Internal applications only" title="Selected Idea Workspace" />
             <select value={workspaceId} onChange={(event) => setWorkspaceId(event.target.value)} className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none">
@@ -484,28 +465,6 @@ export default function OpportunitiesPage() {
                 <p className="mt-3 text-xs leading-5 text-slate-500">
                   No Human Reviewed badge yet. You can request validation from the Validation Hub before high-stakes applications.
                 </p>
-              )}
-            </div>
-          </Card>
-
-          <Card>
-            <CardHeader eyebrow="Venture Connect" title="Internal application status" />
-            <div className="space-y-3">
-              {applied.length === 0 ? (
-                <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">No applications submitted in this session yet.</p>
-              ) : (
-                applied.map((id) => {
-                  const opportunity = opportunities.find((item) => item.id === id);
-                  return opportunity ? (
-                    <div key={id} className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                      <Send size={17} className="mt-0.5 text-primary" />
-                      <div>
-                        <p className="text-sm font-semibold text-slate-950">{opportunity.title}</p>
-                        <p className="text-xs text-slate-500">Status: Submitted</p>
-                      </div>
-                    </div>
-                  ) : null;
-                })
               )}
             </div>
           </Card>

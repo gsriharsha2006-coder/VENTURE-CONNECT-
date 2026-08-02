@@ -9,10 +9,13 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { EmptyState, SkeletonCard, StatusMessage } from "@/components/ui/FeedbackState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { SponsoredCard } from "@/components/ads/SponsoredCard";
+import { getSponsoredCreatives } from "@/lib/data/ads";
 import { getApplications } from "@/lib/data/applications";
 import { getIdeaWorkspaces } from "@/lib/data/ideaWorkspaces";
 import { getOpportunities } from "@/lib/data/opportunities";
 import { completionPercent } from "@/lib/templates";
+import type { SponsoredCreative } from "@/lib/ads/types";
 import type { Application, IdeaWorkspaceItem, Opportunity } from "@/lib/types";
 
 export default function DashboardPage() {
@@ -21,6 +24,7 @@ export default function DashboardPage() {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [promotion, setPromotion] = useState<SponsoredCreative | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -40,6 +44,14 @@ export default function DashboardPage() {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void getSponsoredCreatives("dashboard_sidebar").then((items) => {
+      if (active) setPromotion(items[0] ?? null);
+    }).catch(() => undefined);
+    return () => { active = false; };
   }, []);
 
   const activeWorkspaces = useMemo(() => workspaces.filter((workspace) => !workspace.archived), [workspaces]);
@@ -131,6 +143,7 @@ export default function DashboardPage() {
           </div>
 
           <aside className="space-y-4">
+            {promotion ? <SponsoredCard creative={promotion} placement="dashboard_sidebar" /> : null}
             <Card>
               <CardHeader eyebrow="Deadlines" title="Relevant opportunities" />
               {upcoming.length ? (

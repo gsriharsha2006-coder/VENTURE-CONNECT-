@@ -1,8 +1,9 @@
-import { FilePlus2 } from "lucide-react";
-import { EmptyState, StatusMessage } from "@/components/ui/FeedbackState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { OpportunityPublisher } from "@/components/organisations/OpportunityPublisher";
+import { requireRole } from "@/lib/auth/server";
 
-export default function PostOpportunityPage() {
+export default async function PostOpportunityPage() {
+  const { role } = await requireRole(["investor", "incubator", "hackathon_organizer", "event_organizer"]);
   return (
     <div className="space-y-6">
       <PageHeader
@@ -10,14 +11,7 @@ export default function PostOpportunityPage() {
         title="Post an opportunity"
         description="Create a programme listing after your organisation and publishing permissions have been verified."
       />
-      <StatusMessage>
-        Opportunity publishing is unavailable until the organisation record and review workflow are connected.
-      </StatusMessage>
-      <EmptyState
-        icon={FilePlus2}
-        title="Publishing setup required"
-        description="Verified institutions will be able to draft eligibility, deadlines, application methods and official source details here."
-      />
+      <OpportunityPublisher role={role} />
     </div>
   );
 }

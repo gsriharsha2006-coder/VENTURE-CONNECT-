@@ -25,7 +25,7 @@ export type AuthenticatedProfileContext = {
 
 export class AuthorizationError extends Error {
   constructor(
-    public readonly status: 401 | 403 | 404 | 503,
+    public readonly status: 401 | 403 | 404 | 409 | 429 | 503,
     message: string
   ) {
     super(message);

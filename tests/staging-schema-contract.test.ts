@@ -44,7 +44,8 @@ test("active Supabase setup path is chronological and excludes historical snapsh
     "202607130002_openai_vc_report_provider.sql",
     "202607280001_validation_hub.sql",
     "202607280002_opportunity_application_methods.sql",
-    "202607300001_database_contract_and_identity.sql"
+    "202607300001_database_contract_and_identity.sql",
+    "202608020001_application_quality_and_sponsorship.sql"
   ]);
   assert.ok(!migrationFiles.includes("schema-final.sql"));
   assert.ok(!migrationFiles.includes("schema-v2.sql"));

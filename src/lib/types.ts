@@ -212,6 +212,7 @@ export type IdeaWorkspaceItem = {
 };
 
 export type ApplicationMethod =
+  | "internal_registration"
   | "external_registration"
   | "idea_workspace_application"
   | "hybrid_application"
@@ -319,6 +320,7 @@ export type Opportunity = {
   description?: string;
   /** Compatibility for older cards/routes. */
   premium?: boolean;
+  is_sponsored?: boolean;
 };
 
 export type Application = {
@@ -358,6 +360,7 @@ export type ExternalRegistration = {
 
 export type NotificationType =
   | "Investor Interested"
+  | "Information Requested"
   | "New Message"
   | "Meeting Scheduled"
   | "Document Request"
