@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { AuthorizationError, requireRole } from "@/lib/auth/server";
 import { runDeterministicQualityCheck } from "@/lib/application-quality/engine";
 import { ApplicationQualityProviderError, generateSemanticQualityReview } from "@/lib/application-quality/openai";
-import type { ApplicationDraft, EligibilityRules, QualityCheckStatus } from "@/lib/application-quality/types";
+import type { ApplicationDraft, ApplicationQualityResult, EligibilityRules } from "@/lib/application-quality/types";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -32,13 +32,6 @@ function enforceRateLimit(profileId: string) {
 
 function fingerprint(draft: ApplicationDraft) {
   return createHash("sha256").update(JSON.stringify(draft)).digest("hex");
-}
-
-function deriveStatus(score: number, contradictions: string[]): QualityCheckStatus {
-  if (contradictions.length) return "manual_review";
-  if (score >= 70) return "ready_to_submit";
-  if (score >= 45) return "needs_revision";
-  return "incomplete";
 }
 
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -84,6 +77,11 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
       startupStage: String(answers.startupStage ?? "Idea") as ApplicationDraft["startupStage"],
       geography: String(answers.founderLocation ?? ""),
       college: typeof answers.college === "string" ? answers.college : undefined,
+      isStudent: typeof answers.isStudent === "boolean"
+        ? answers.isStudent
+        : typeof answers.applicantType === "string"
+          ? answers.applicantType.trim().toLowerCase() === "student"
+          : undefined,
       fundingRequirement: fundingValue,
       answers,
       requiredFields: Array.from(new Set([...CORE_PITCH_FIELDS, ...configuredRequiredFields, ...(rules.mandatoryLinks ?? [])]))
@@ -112,7 +110,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
       throw new AuthorizationError(429, "This pilot application has used its initial quality check and one recheck.");
     }
 
-    async function saveResult(result: Record<string, unknown>, model: string | null, usage: unknown) {
+    async function saveResult(result: ApplicationQualityResult, model: string | null, usage: unknown) {
       const { error: retireError } = await serviceDb
         .from("application_quality_checks")
         .update({ is_current: false })
@@ -126,7 +124,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
         organisation_id: opportunityRecord.organisation_id,
         input_fingerprint: inputFingerprint,
         status: result.status,
-        score: result.qualityScore,
+        score: result.score,
         result_json: result,
         is_current: true,
         semantic_model: model,
@@ -147,7 +145,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
       await serviceDb.from("pilot_events").insert({
         profile_id: profile.id,
         event_name: result.status === "ready_to_submit" ? "quality_check_passed" : "quality_check_failed",
-        metadata: { applicationId: applicationRecord.id, status: result.status, score: result.qualityScore }
+        metadata: { applicationId: applicationRecord.id, status: result.status, score: result.score }
       });
     }
 
@@ -158,11 +156,9 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     }
 
     const semantic = await generateSemanticQualityReview(draft, rules);
-    const result = {
+    const result: ApplicationQualityResult = {
       ...semantic.result,
-      eligibility: deterministic.eligibility,
       eligibilityMismatches: deterministic.eligibilityMismatches,
-      status: deriveStatus(semantic.result.qualityScore, semantic.result.contradictoryClaims),
       semanticReviewRequired: false,
       checkedAt: new Date().toISOString(),
       inputFingerprint

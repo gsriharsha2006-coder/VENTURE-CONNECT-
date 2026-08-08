@@ -1,109 +1,95 @@
-import type { EligibilityResult, QualityIssue, SemanticQualityResult } from "./types";
+import type { ApplicationQualityCorrection, QualityCheckStatus, SemanticQualityResult } from "./types";
 
-const statuses = new Set(["ready_to_submit", "needs_revision", "incomplete", "eligibility_mismatch", "manual_review"]);
-const severities = new Set(["low", "medium", "high"]);
+export const QUALITY_CHECK_STATUSES: QualityCheckStatus[] = [
+  "ready_to_submit",
+  "needs_revision",
+  "incomplete",
+  "eligibility_mismatch",
+  "manual_review"
+];
+
+const RESULT_KEYS = ["status", "score", "summary", "strengths", "majorIssues", "corrections", "manualReviewReason"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-function score(value: unknown, max = 100) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= max;
+function hasExactKeys(value: Record<string, unknown>, keys: string[]) {
+  const actual = Object.keys(value).sort();
+  return actual.length === keys.length && actual.every((key, index) => key === [...keys].sort()[index]);
 }
 
-function strings(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string" && item.length <= 600);
+function boundedStrings(value: unknown, maximum: number): value is string[] {
+  return Array.isArray(value) && value.length <= maximum && value.every((item) => typeof item === "string" && item.trim().length > 0 && item.length <= 600);
 }
 
-function qualityIssues(value: unknown): value is QualityIssue[] {
-  return Array.isArray(value) && value.every((item) => isRecord(item) &&
-    typeof item.field === "string" &&
-    typeof item.code === "string" &&
-    typeof item.message === "string" &&
-    typeof item.suggestedAction === "string" &&
-    severities.has(String(item.severity))
-  );
+function validCorrections(value: unknown, validFields: Set<string>): value is ApplicationQualityCorrection[] {
+  return Array.isArray(value) && value.length <= 3 && value.every((item) => {
+    if (!isRecord(item) || !hasExactKeys(item, ["field", "issue", "correction"])) return false;
+    return typeof item.field === "string" && validFields.has(item.field) &&
+      typeof item.issue === "string" && item.issue.trim().length > 0 && item.issue.length <= 600 &&
+      typeof item.correction === "string" && item.correction.trim().length > 0 && item.correction.length <= 600;
+  });
 }
 
-function eligibility(value: unknown): value is EligibilityResult {
-  return isRecord(value) && ["sectorMatch", "stageMatch", "geographyMatch", "fundingRangeMatch", "collegeMatch", "deadlineOpen"]
-    .every((key) => typeof value[key] === "boolean");
+export function isSemanticQualityResult(value: unknown, validFieldNames: string[]): value is SemanticQualityResult {
+  if (!isRecord(value) || !hasExactKeys(value, RESULT_KEYS)) return false;
+  const status = String(value.status);
+  const manualReasonValid = status === "manual_review"
+    ? typeof value.manualReviewReason === "string" && value.manualReviewReason.trim().length > 0 && value.manualReviewReason.length <= 600
+    : value.manualReviewReason === null;
+  return QUALITY_CHECK_STATUSES.includes(status as QualityCheckStatus) &&
+    typeof value.score === "number" && Number.isFinite(value.score) && value.score >= 0 && value.score <= 100 &&
+    typeof value.summary === "string" && value.summary.trim().length > 0 && value.summary.length <= 600 &&
+    boundedStrings(value.strengths, 3) &&
+    boundedStrings(value.majorIssues, 3) &&
+    validCorrections(value.corrections, new Set(validFieldNames)) &&
+    manualReasonValid;
 }
 
-export function isSemanticQualityResult(value: unknown): value is SemanticQualityResult {
-  if (!isRecord(value)) return false;
-  return score(value.qualityScore) &&
-    score(value.completenessScore, 20) &&
-    score(value.meaningfulContentScore, 15) &&
-    score(value.problemSolutionScore, 20) &&
-    score(value.customerMarketScore, 15) &&
-    score(value.businessModelScore, 10) &&
-    score(value.validationTractionScore, 10) &&
-    score(value.consistencyScore, 5) &&
-    score(value.fundingClarityScore, 5) &&
-    score(value.organisationFitScore) &&
-    statuses.has(String(value.status)) &&
-    typeof value.summary === "string" &&
-    strings(value.strengths) &&
-    qualityIssues(value.issues) &&
-    qualityIssues(value.fieldFeedback) &&
-    eligibility(value.eligibility) &&
-    strings(value.unsupportedClaims) &&
-    strings(value.contradictoryClaims) &&
-    (value.manualReviewReason === null || typeof value.manualReviewReason === "string");
-}
-
-export function parseSemanticQualityResult(value: unknown) {
-  if (!isSemanticQualityResult(value)) throw new Error("Semantic quality response did not match the required schema.");
+export function parseSemanticQualityResult(value: unknown, validFieldNames: string[]) {
+  if (!isSemanticQualityResult(value, validFieldNames)) throw new Error("Semantic quality response did not match the required schema.");
   return value;
 }
 
-export function buildApplicationQualityJsonSchema() {
-  const issueSchema = {
-    type: "object",
-    additionalProperties: false,
-    required: ["field", "severity", "message", "suggestedAction", "code"],
-    properties: {
-      field: { type: "string" },
-      severity: { type: "string", enum: ["low", "medium", "high"] },
-      message: { type: "string" },
-      suggestedAction: { type: "string" },
-      code: { type: "string" }
-    }
+export function buildManualReviewFallback(reason = "The automated quality check could not confidently validate this application."): SemanticQualityResult {
+  return {
+    status: "manual_review",
+    score: 50,
+    summary: "A human reviewer should confirm the application's clarity and consistency.",
+    strengths: [],
+    majorIssues: ["The automated meaning-based review did not return a reliable structured result."],
+    corrections: [],
+    manualReviewReason: reason
   };
+}
+
+export function buildApplicationQualityJsonSchema(validFieldNames: string[]) {
   return {
     type: "object",
     additionalProperties: false,
-    required: [
-      "qualityScore", "completenessScore", "meaningfulContentScore", "problemSolutionScore", "customerMarketScore",
-      "businessModelScore", "validationTractionScore", "consistencyScore", "fundingClarityScore", "organisationFitScore",
-      "status", "summary", "strengths", "issues", "fieldFeedback", "eligibility", "unsupportedClaims", "contradictoryClaims", "manualReviewReason"
-    ],
+    required: RESULT_KEYS,
     properties: {
-      qualityScore: { type: "number", minimum: 0, maximum: 100 },
-      completenessScore: { type: "number", minimum: 0, maximum: 20 },
-      meaningfulContentScore: { type: "number", minimum: 0, maximum: 15 },
-      problemSolutionScore: { type: "number", minimum: 0, maximum: 20 },
-      customerMarketScore: { type: "number", minimum: 0, maximum: 15 },
-      businessModelScore: { type: "number", minimum: 0, maximum: 10 },
-      validationTractionScore: { type: "number", minimum: 0, maximum: 10 },
-      consistencyScore: { type: "number", minimum: 0, maximum: 5 },
-      fundingClarityScore: { type: "number", minimum: 0, maximum: 5 },
-      organisationFitScore: { type: "number", minimum: 0, maximum: 100 },
-      status: { type: "string", enum: Array.from(statuses) },
-      summary: { type: "string" },
-      strengths: { type: "array", items: { type: "string" } },
-      issues: { type: "array", items: issueSchema },
-      fieldFeedback: { type: "array", items: issueSchema },
-      eligibility: {
-        type: "object",
-        additionalProperties: false,
-        required: ["sectorMatch", "stageMatch", "geographyMatch", "fundingRangeMatch", "collegeMatch", "deadlineOpen"],
-        properties: Object.fromEntries(["sectorMatch", "stageMatch", "geographyMatch", "fundingRangeMatch", "collegeMatch", "deadlineOpen"].map((key) => [key, { type: "boolean" }]))
+      status: { type: "string", enum: QUALITY_CHECK_STATUSES },
+      score: { type: "number", minimum: 0, maximum: 100 },
+      summary: { type: "string", maxLength: 600 },
+      strengths: { type: "array", maxItems: 3, items: { type: "string", maxLength: 600 } },
+      majorIssues: { type: "array", maxItems: 3, items: { type: "string", maxLength: 600 } },
+      corrections: {
+        type: "array",
+        maxItems: 3,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["field", "issue", "correction"],
+          properties: {
+            field: { type: "string", enum: validFieldNames },
+            issue: { type: "string", maxLength: 600 },
+            correction: { type: "string", maxLength: 600 }
+          }
+        }
       },
-      unsupportedClaims: { type: "array", items: { type: "string" } },
-      contradictoryClaims: { type: "array", items: { type: "string" } },
-      manualReviewReason: { anyOf: [{ type: "string" }, { type: "null" }] }
+      manualReviewReason: { anyOf: [{ type: "string", maxLength: 600 }, { type: "null" }] }
     }
   };
 }

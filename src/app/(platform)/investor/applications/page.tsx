@@ -39,18 +39,17 @@ export default async function OrganisationApplicationQueuePage() {
                   <div>
                     <div className="flex flex-wrap gap-2">
                       <Badge>{String(application.status).replaceAll("_", " ")}</Badge>
-                      {application.quality_status !== "not_applicable" ? <Badge tone="green">Quality {String(quality.qualityScore ?? "Recorded")}</Badge> : <Badge tone="slate">Organiser form</Badge>}
+                      {application.quality_status !== "not_applicable" ? <Badge tone="green">Application quality {String(quality.score ?? "Recorded")}</Badge> : <Badge tone="slate">Organiser form</Badge>}
                     </div>
                     <h2 className="mt-3 text-xl font-semibold">{String(answers.startupName ?? answers.team_name ?? "Application")}</h2>
                     <p className="mt-1 text-sm text-slate-600">{founder?.full_name ?? "Founder"} / {opportunity?.title ?? "Opportunity"}</p>
                   </div>
                   <p className="text-xs text-slate-500">Submitted {new Date(application.submitted_at).toLocaleDateString()}</p>
                 </div>
-                <div className="mt-5 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <div className="mt-5 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
                   <p className="rounded-lg bg-slate-50 p-3"><strong>Sector</strong><br />{String(answers.sector ?? "Not provided")}</p>
                   <p className="rounded-lg bg-slate-50 p-3"><strong>Stage</strong><br />{String(answers.startupStage ?? "Not provided")}</p>
                   <p className="rounded-lg bg-slate-50 p-3"><strong>Funding</strong><br />{String(answers.fundingRequirement ?? "Not provided")}</p>
-                  <p className="rounded-lg bg-slate-50 p-3"><strong>Organisation fit</strong><br />{String(quality.organisationFitScore ?? "Not scored")}</p>
                 </div>
                 <div className="mt-5 border-t border-slate-200 pt-4">
                   <ApplicationQueueActions applicationId={application.id} organiserMode={organiserMode} />

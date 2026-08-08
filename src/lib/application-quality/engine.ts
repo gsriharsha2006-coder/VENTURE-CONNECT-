@@ -1,30 +1,71 @@
 import type {
   ApplicationAnswerValue,
   ApplicationDraft,
+  ApplicationQualityCorrection,
   ApplicationQualityResult,
-  EligibilityResult,
-  EligibilityRules,
-  QualityIssue
+  EligibilityMismatch,
+  EligibilityRules
 } from "./types";
 
+type RuleIssue = ApplicationQualityCorrection & {
+  code: "required" | "too_short" | "placeholder" | "random_text" | "repeated_answer" | "invalid_url";
+  penalty: number;
+};
+
 const PLACEHOLDER_VALUES = new Set([
-  "test",
-  "testing",
-  "asdf",
-  "asdfgh",
-  "qwerty",
-  "nothing",
-  "no idea",
-  "12345",
-  "will update later",
-  "coming soon",
-  "sample text",
-  "not applicable",
-  "n/a"
+  "tbd", "n/a", "na", "test", "testing", "lorem ipsum", "coming soon", "sample", "sample text", "xyz", "asdf"
 ]);
 
+const FIELD_LABELS: Record<string, string> = {
+  startupName: "Startup Name",
+  founderName: "Founder Name",
+  sector: "Sector",
+  startupStage: "Startup Stage",
+  founderLocation: "Founder Location",
+  problem: "Problem Statement",
+  solution: "Solution",
+  targetCustomer: "Target Customer",
+  marketOpportunity: "Market Opportunity",
+  businessModel: "Business Model",
+  competitors: "Competitors and Alternatives",
+  differentiation: "Product Differentiation",
+  productTechnology: "Product and Technology",
+  customerValidation: "Customer Validation",
+  traction: "Traction",
+  goToMarket: "Go-to-Market Strategy",
+  team: "Team",
+  fundingRequirement: "Funding Requirement",
+  useOfFunds: "Use of Funds",
+  risks: "Risks and Assumptions",
+  website: "Website",
+  pitchDeck: "Pitch-deck Link",
+  organisationQuestions: "Organisation-specific Questions"
+};
+
+const NARRATIVE_MINIMUMS: Record<string, number> = {
+  problem: 40,
+  solution: 40,
+  targetCustomer: 20,
+  marketOpportunity: 25,
+  businessModel: 25,
+  competitors: 15,
+  differentiation: 25,
+  productTechnology: 25,
+  customerValidation: 20,
+  traction: 12,
+  goToMarket: 25,
+  team: 15,
+  useOfFunds: 25,
+  risks: 20,
+  organisationQuestions: 20
+};
+
 const LINK_FIELD_PATTERN = /(url|website|github|demo|portfolio|pitch.?deck|link)$/i;
-const LONG_FORM_FIELD_PATTERN = /(problem|solution|customer|market|model|competitor|differentiation|technology|validation|traction|strategy|team|fund|risk|assumption|description)/i;
+const KEYBOARD_PATTERN = /(qwerty|asdfgh|hjkl|zxcv|uiop)/i;
+
+export function applicationFieldLabel(field: string) {
+  return FIELD_LABELS[field] ?? field.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (value) => value.toUpperCase());
+}
 
 function asText(value: ApplicationAnswerValue) {
   if (Array.isArray(value)) return value.join(" ").trim();
@@ -34,20 +75,42 @@ function asText(value: ApplicationAnswerValue) {
 }
 
 function normalized(value: ApplicationAnswerValue) {
-  return asText(value).toLowerCase().replace(/\s+/g, " ").trim();
+  return asText(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function isValidPublicUrl(value: string) {
+function isValidHttpUrl(value: string) {
   try {
     const parsed = new URL(value);
-    return ["http:", "https:"].includes(parsed.protocol) && Boolean(parsed.hostname) && !parsed.hostname.endsWith(".local") && parsed.hostname !== "localhost";
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") && Boolean(parsed.hostname);
   } catch {
     return false;
   }
 }
 
-function issue(field: string, code: string, message: string, suggestedAction: string, severity: QualityIssue["severity"] = "high"): QualityIssue {
-  return { field, code, message, suggestedAction, severity };
+function isRandomText(text: string, field: string) {
+  if (LINK_FIELD_PATTERN.test(field)) return false;
+  const compact = text.replace(/\s/g, "");
+  if (KEYBOARD_PATTERN.test(compact)) return true;
+  if (/([^a-z0-9\s])\1{3,}/i.test(text)) return true;
+  if (/^(?:[^a-z0-9]*[a-z]){0,2}[^a-z0-9]{5,}$/i.test(text)) return true;
+  if (/^[a-z0-9]{8,}$/i.test(compact) && /[a-z]/i.test(compact) && /\d/.test(compact)) {
+    const letters = compact.match(/[a-z]/gi) ?? [];
+    const vowels = compact.match(/[aeiou]/gi) ?? [];
+    return letters.length > 0 && vowels.length / letters.length < 0.16;
+  }
+  return false;
+}
+
+function comparableWords(text: string) {
+  return new Set(normalized(text).split(" ").filter((word) => word.length > 2));
+}
+
+function essentiallySame(left: string, right: string) {
+  const a = comparableWords(left);
+  const b = comparableWords(right);
+  if (a.size < 8 || b.size < 8) return normalized(left) === normalized(right) && normalized(left).length >= 40;
+  const shared = [...a].filter((word) => b.has(word)).length;
+  return shared / Math.max(a.size, b.size) >= 0.9;
 }
 
 function includesCaseInsensitive(values: string[] | undefined, candidate: string) {
@@ -56,52 +119,49 @@ function includesCaseInsensitive(values: string[] | undefined, candidate: string
   return values.some((value) => value.trim().toLowerCase() === target);
 }
 
+function mismatch(field: string, requirement: string, expected: string, actual: string): EligibilityMismatch {
+  return { field, requirement, expected, actual: actual || "Not provided" };
+}
+
 export function checkEligibility(draft: ApplicationDraft, rules: EligibilityRules, now = new Date()) {
-  const sectorMatch = includesCaseInsensitive(rules.acceptedSectors, draft.sector);
-  const stageMatch = !rules.acceptedStages?.length || rules.acceptedStages.includes(draft.startupStage);
-  const geographyMatch = includesCaseInsensitive(rules.acceptedGeographies, draft.geography);
-  const collegeMatch = !rules.eligibleColleges?.length || includesCaseInsensitive(rules.eligibleColleges, draft.college ?? "");
-  const funding = draft.fundingRequirement;
-  const fundingRangeMatch = funding === undefined || (
-    (rules.minimumFunding === undefined || funding >= rules.minimumFunding) &&
-    (rules.maximumFunding === undefined || funding <= rules.maximumFunding)
-  );
+  const mismatches: EligibilityMismatch[] = [];
+  if (!includesCaseInsensitive(rules.acceptedSectors, draft.sector)) {
+    mismatches.push(mismatch("sector", "Sector or category", rules.acceptedSectors!.join(" or "), draft.sector));
+  }
+  if (rules.acceptedStages?.length && !rules.acceptedStages.includes(draft.startupStage)) {
+    mismatches.push(mismatch("startupStage", "Startup stage", rules.acceptedStages.join(" or "), draft.startupStage));
+  }
+  if (!includesCaseInsensitive(rules.acceptedGeographies, draft.geography)) {
+    mismatches.push(mismatch("founderLocation", "Geography", rules.acceptedGeographies!.join(" or "), draft.geography));
+  }
+  if (rules.eligibleColleges?.length && !includesCaseInsensitive(rules.eligibleColleges, draft.college ?? "")) {
+    mismatches.push(mismatch("college", "Eligible institution", rules.eligibleColleges.join(" or "), draft.college ?? ""));
+  }
+  if (rules.studentOnly === true && draft.isStudent !== true) {
+    mismatches.push(mismatch("isStudent", "Student applicant", "Current student", draft.isStudent === false ? "Not a student" : "Not provided"));
+  }
   const deadlineTimestamp = rules.deadline && /^\d{4}-\d{2}-\d{2}$/.test(rules.deadline)
     ? Date.parse(`${rules.deadline}T23:59:59.999Z`)
     : Date.parse(rules.deadline ?? "");
-  const deadlineOpen = !rules.deadline || Number.isNaN(deadlineTimestamp) || deadlineTimestamp >= now.getTime();
-  const eligibility: EligibilityResult = { sectorMatch, stageMatch, geographyMatch, fundingRangeMatch, collegeMatch, deadlineOpen };
-  const mismatches: string[] = [];
-  if (!sectorMatch) mismatches.push("Sector does not match the opportunity criteria.");
-  if (!stageMatch) mismatches.push("Startup stage does not match the opportunity criteria.");
-  if (!geographyMatch) mismatches.push("Geography does not match the opportunity criteria.");
-  if (!collegeMatch) mismatches.push("College eligibility does not match the opportunity criteria.");
-  if (!fundingRangeMatch) mismatches.push("Funding request is outside the accepted range.");
-  if (!deadlineOpen) mismatches.push("The application deadline has passed.");
-  return { eligibility, mismatches };
+  if (rules.deadline && !Number.isNaN(deadlineTimestamp) && deadlineTimestamp < now.getTime()) {
+    mismatches.push(mismatch("deadline", "Application deadline", `On or before ${rules.deadline}`, now.toISOString()));
+  }
+  return mismatches;
 }
 
-function repeatedWordRatio(text: string) {
-  const words = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
-  if (words.length < 6) return 0;
-  const counts = new Map<string, number>();
-  words.forEach((word) => counts.set(word, (counts.get(word) ?? 0) + 1));
-  return Math.max(...counts.values()) / words.length;
+function ruleIssue(field: string, code: RuleIssue["code"], issue: string, correction: string, penalty: number): RuleIssue {
+  return { field, code, issue, correction, penalty };
 }
 
-function mostlySymbols(text: string) {
-  if (text.length < 6) return false;
-  const meaningful = (text.match(/[a-z0-9]/gi) ?? []).length;
-  return meaningful / text.length < 0.45;
-}
-
-export function runRuleBasedValidation(draft: ApplicationDraft) {
-  const issues: QualityIssue[] = [];
-  const seenAnswers = new Map<string, string>();
+export function runRuleBasedValidation(draft: ApplicationDraft): RuleIssue[] {
+  const issues: RuleIssue[] = [];
+  const required = new Set(draft.requiredFields);
+  const narrativeAnswers: Array<[string, string]> = [];
 
   draft.requiredFields.forEach((field) => {
-    if (!normalized(draft.answers[field])) {
-      issues.push(issue(field, "required", "This required field is empty.", "Add a complete answer before rechecking."));
+    if (!asText(draft.answers[field])) {
+      const label = applicationFieldLabel(field);
+      issues.push(ruleIssue(field, "required", `${label} is missing.`, `Complete ${label} before rechecking.`, 14));
     }
   });
 
@@ -109,88 +169,71 @@ export function runRuleBasedValidation(draft: ApplicationDraft) {
     const text = asText(value);
     const clean = normalized(value);
     if (!clean) return;
+    const notApplicable = clean === "n a" || clean === "na";
+    if (notApplicable && !required.has(field)) return;
+    let unusable = false;
 
-    if (PLACEHOLDER_VALUES.has(clean) || /^(.)\1{4,}$/.test(clean)) {
-      issues.push(issue(field, "placeholder", "This answer appears to be placeholder or random text.", "Replace it with specific information supported by your current evidence."));
+    if ((PLACEHOLDER_VALUES.has(clean) && !notApplicable) || (required.has(field) && notApplicable)) {
+      issues.push(ruleIssue(field, "placeholder", `${applicationFieldLabel(field)} contains placeholder content.`, "Replace the placeholder with application-specific information.", 10));
+      unusable = true;
+    } else if (isRandomText(text, field)) {
+      issues.push(ruleIssue(field, "random_text", `${applicationFieldLabel(field)} appears to contain meaningless text.`, "Replace it with a clear answer relevant to this field.", 10));
+      unusable = true;
     }
-    if (LONG_FORM_FIELD_PATTERN.test(field) && clean.split(" ").length < 4) {
-      issues.push(issue(field, "too_short", "This answer is too short to be meaningful.", "Explain the claim, context, and available evidence in at least one complete sentence."));
+
+    const minimum = NARRATIVE_MINIMUMS[field];
+    if (minimum && text.length < minimum && !unusable) {
+      issues.push(ruleIssue(field, "too_short", `${applicationFieldLabel(field)} is too short to communicate useful information.`, `Add enough specific context for an organisation reviewer to understand ${applicationFieldLabel(field).toLowerCase()}.`, 6));
     }
-    if (LONG_FORM_FIELD_PATTERN.test(field) && /^[bcdfghjklmnpqrstvwxyz0-9]{8,}$/i.test(clean.replace(/\s/g, ""))) {
-      issues.push(issue(field, "random_text", "This answer appears to contain random text.", "Replace it with a clear, field-specific explanation."));
+    if (LINK_FIELD_PATTERN.test(field) && !isValidHttpUrl(text)) {
+      issues.push(ruleIssue(field, "invalid_url", `${applicationFieldLabel(field)} is not a valid HTTP or HTTPS URL.`, "Enter a complete URL beginning with http:// or https://.", 6));
     }
-    if (LINK_FIELD_PATTERN.test(field) && text && !isValidPublicUrl(text)) {
-      issues.push(issue(field, "invalid_url", "This link is not a valid public URL.", "Use a complete http or https URL."));
-    }
-    if (/(.)\1{7,}/i.test(text)) {
-      issues.push(issue(field, "repeated_characters", "This answer contains excessive repeated characters.", "Remove repeated characters and provide a readable answer."));
-    }
-    if (mostlySymbols(text)) {
-      issues.push(issue(field, "mostly_symbols", "This answer contains mostly symbols.", "Replace symbols with a clear written answer."));
-    }
-    if (repeatedWordRatio(text) >= 0.5) {
-      issues.push(issue(field, "repeated_words", "This answer repeats the same words excessively.", "Rewrite the answer with specific, non-repeated information."));
-    }
-    const paragraphs = text.split(/\n\s*\n|(?<=[.!?])\s+(?=[A-Z])/).map((part) => part.trim().toLowerCase()).filter((part) => part.length >= 24);
-    if (new Set(paragraphs).size < paragraphs.length) {
-      issues.push(issue(field, "duplicate_paragraph", "This answer repeats the same paragraph.", "Remove duplicated text and keep one concise, relevant explanation."));
-    }
-    if (clean.length >= 24) {
-      const existingField = seenAnswers.get(clean);
-      if (existingField && existingField !== field) {
-        issues.push(issue(field, "duplicate_answer", `This answer duplicates the ${existingField} response.`, "Provide information specific to this field."));
-      } else {
-        seenAnswers.set(clean, field);
-      }
-    }
+    if (minimum && text.length >= 40) narrativeAnswers.push([field, text]);
   });
 
-  if (draft.fundingRequirement !== undefined && (!Number.isFinite(draft.fundingRequirement) || draft.fundingRequirement < 0)) {
-    issues.push(issue("fundingRequirement", "invalid_funding", "Funding requirement must be a valid non-negative amount.", "Enter the requested amount as a number."));
+  for (let index = 0; index < narrativeAnswers.length; index += 1) {
+    const [field, answer] = narrativeAnswers[index];
+    const duplicate = narrativeAnswers.slice(0, index).find(([, previous]) => essentiallySame(answer, previous));
+    if (duplicate) {
+      issues.push(ruleIssue(field, "repeated_answer", `${applicationFieldLabel(field)} repeats essentially the same answer as ${applicationFieldLabel(duplicate[0])}.`, `Provide information specific to ${applicationFieldLabel(field).toLowerCase()}.`, 8));
+    }
   }
-  if (draft.fundingRequirement && !normalized(draft.answers.useOfFunds)) {
-    issues.push(issue("useOfFunds", "missing_use_of_funds", "A funding request requires a use-of-funds explanation.", "Explain how the requested capital will be allocated."));
-  }
+
   return issues;
 }
 
 export function runDeterministicQualityCheck(draft: ApplicationDraft, rules: EligibilityRules, now = new Date()): ApplicationQualityResult {
-  const { eligibility, mismatches } = checkEligibility(draft, rules, now);
-  const issues = runRuleBasedValidation(draft);
-  const answeredRequired = draft.requiredFields.filter((field) => normalized(draft.answers[field])).length;
-  const completenessScore = draft.requiredFields.length ? Math.round((answeredRequired / draft.requiredFields.length) * 20) : 20;
-  const meaningfulPenalty = issues.filter((item) => ["placeholder", "too_short", "duplicate_answer", "repeated_words", "repeated_characters", "mostly_symbols"].includes(item.code)).length;
-  const meaningfulContentScore = Math.max(0, 15 - meaningfulPenalty * 3);
-  const eligibilityMismatch = mismatches.length > 0;
-  const qualityScore = Math.max(0, completenessScore + meaningfulContentScore);
-  const status = eligibilityMismatch ? "eligibility_mismatch" : issues.length ? (completenessScore < 20 ? "incomplete" : "needs_revision") : "needs_revision";
+  const corrections = runRuleBasedValidation(draft);
+  const eligibilityMismatches = checkEligibility(draft, rules, now);
+  const missingRequired = corrections.some((item) => item.code === "required");
+  const unusableRequired = corrections.filter((item) => (item.code === "placeholder" || item.code === "random_text") && draft.requiredFields.includes(item.field)).length;
+  const score = Math.max(0, Math.min(100, 100 - corrections.reduce((total, item) => total + item.penalty, 0)));
+  const status = eligibilityMismatches.length
+    ? "eligibility_mismatch"
+    : missingRequired || unusableRequired >= 2
+      ? "incomplete"
+      : corrections.length
+        ? "needs_revision"
+        : "needs_revision";
+  const semanticReviewRequired = eligibilityMismatches.length === 0 && corrections.length === 0;
+  const majorIssues = eligibilityMismatches.length
+    ? eligibilityMismatches.slice(0, 3).map((item) => `${item.requirement} requires ${item.expected}; the application shows ${item.actual}.`)
+    : corrections.slice(0, 3).map((item) => item.issue);
 
   return {
-    qualityScore,
-    completenessScore,
-    meaningfulContentScore,
-    problemSolutionScore: 0,
-    customerMarketScore: 0,
-    businessModelScore: 0,
-    validationTractionScore: 0,
-    consistencyScore: 0,
-    fundingClarityScore: 0,
-    organisationFitScore: eligibilityMismatch ? 0 : 100,
     status,
-    summary: eligibilityMismatch
-      ? "The application does not currently meet every mandatory opportunity criterion."
-      : issues.length
-        ? "Correct the highlighted fields before semantic review."
-        : "Deterministic checks passed. Semantic review is required before submission.",
-    strengths: issues.length ? [] : ["Every required field contains reviewable content."],
-    issues,
-    fieldFeedback: issues,
-    eligibility,
-    eligibilityMismatches: mismatches,
-    unsupportedClaims: [],
-    contradictoryClaims: [],
+    score: eligibilityMismatches.length ? Math.min(score, 60) : score,
+    summary: eligibilityMismatches.length
+      ? "The application does not match one or more explicitly configured opportunity requirements."
+      : corrections.length
+        ? "Correct the highlighted application fields before submission."
+        : "Rule-based checks passed. Meaning-based review is required before submission.",
+    strengths: corrections.length || eligibilityMismatches.length ? [] : ["All required fields contain reviewable content."],
+    majorIssues,
+    corrections: corrections.slice(0, 3).map(({ field, issue, correction }) => ({ field, issue, correction })),
+    eligibilityMismatches,
     manualReviewReason: null,
-    semanticReviewRequired: !eligibilityMismatch && issues.length === 0,
+    semanticReviewRequired,
     checkedAt: now.toISOString()
   };
 }
